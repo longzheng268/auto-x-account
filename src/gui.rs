@@ -432,7 +432,7 @@ impl AutoXAccountApp {
                             );
 
                             // 显示检测到的系统代理
-                            if let Some(proxy_url) = state.config.get_proxy_url() {
+                            if let Some(proxy_url) = state.config.get_proxy_url(crate::config::ProxyTarget::Browser) {
                                 ui.label(
                                     RichText::new(format!("检测到: {}", proxy_url))
                                         .size(13.0)

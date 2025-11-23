@@ -15,6 +15,42 @@ pub struct Config {
     pub x_account: XAccountConfig,
     pub output: OutputConfig,
     pub ui: UiConfig,
+    /// 运行模式：production（生产）或 test（测试）
+    /// Running mode: production or test
+    #[serde(default = "default_mode")]
+    pub mode: RunMode,
+    /// 邮箱提供商配置
+    /// Email provider configuration
+    #[serde(default)]
+    pub email_provider: EmailProviderSettings,
+}
+
+/// 运行模式
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RunMode {
+    /// 生产模式 - 只能使用自建域名邮箱
+    Production,
+    /// 测试模式 - 可以使用临时邮箱
+    Test,
+}
+
+fn default_mode() -> RunMode {
+    RunMode::Test
+}
+
+/// 邮箱提供商设置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmailProviderSettings {
+    /// 强制使用自建域名（生产模式下自动启用）
+    #[serde(default)]
+    pub force_self_hosted: bool,
+    /// 允许的临时邮箱提供商列表（仅测试模式）
+    #[serde(default)]
+    pub allowed_temp_providers: Vec<String>,
+    /// 生产域名列表（必须配置）
+    #[serde(default)]
+    pub production_domains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -373,6 +409,118 @@ impl Config {
             }
         }
     }
+
+    /// 验证邮箱提供商是否允许使用
+    /// Validate if email provider is allowed
+    pub fn validate_email_provider(&self, provider: &crate::email_provider::EmailProvider) -> Result<()> {
+        use crate::email_provider::EmailProvider;
+
+        // 在生产模式下，只能使用自建域名
+        if self.mode == RunMode::Production || self.email_provider.force_self_hosted {
+            match provider {
+                EmailProvider::SelfHosted | EmailProvider::Custom => {
+                    // 检查域名是否在生产域名列表中
+                    if self.email_provider.production_domains.is_empty() {
+                        anyhow::bail!(
+                            "❌ 生产模式错误：未配置生产域名列表\n\
+                            Production mode error: No production domains configured\n\
+                            请在配置文件中设置 email_provider.production_domains\n\
+                            Please set email_provider.production_domains in config file"
+                        );
+                    }
+                    Ok(())
+                }
+                _ => {
+                    anyhow::bail!(
+                        "❌ 生产模式限制：不允许使用临时邮箱服务\n\
+                        Production mode restriction: Temporary email services are not allowed\n\
+                        \n\
+                        当前模式 / Current mode: {:?}\n\
+                        当前提供商 / Current provider: {:?}\n\
+                        \n\
+                        解决方案 / Solutions:\n\
+                        1. 切换到测试模式（在配置中设置 mode = \"test\"）\n\
+                           Switch to test mode (set mode = \"test\" in config)\n\
+                        2. 使用自建域名邮箱（设置 provider = \"selfhosted\"）\n\
+                           Use self-hosted email (set provider = \"selfhosted\")\n\
+                        3. 配置自定义 IMAP/SMTP（设置 provider = \"custom\"）\n\
+                           Configure custom IMAP/SMTP (set provider = \"custom\")\n\
+                        \n\
+                        ⚠️  重要提示：生产环境必须使用自己的域名邮箱，临时邮箱仅用于测试！\n\
+                        ⚠️  Important: Production must use your own domain emails, temp emails are for testing only!",
+                        self.mode, provider
+                    );
+                }
+            }
+        } else {
+            // 测试模式下，检查是否在允许列表中
+            let provider_name = format!("{:?}", provider);
+            if !self.email_provider.allowed_temp_providers.is_empty() {
+                let allowed = self.email_provider.allowed_temp_providers.iter()
+                    .any(|p| p.to_lowercase() == provider_name.to_lowercase());
+                
+                if !allowed && !matches!(provider, EmailProvider::SelfHosted | EmailProvider::Custom) {
+                    anyhow::bail!(
+                        "⚠️  测试模式警告：提供商 {:?} 不在允许列表中\n\
+                        Test mode warning: Provider {:?} is not in allowed list\n\
+                        允许的提供商 / Allowed providers: {:?}",
+                        provider, provider, self.email_provider.allowed_temp_providers
+                    );
+                }
+            }
+            Ok(())
+        }
+    }
+
+    /// 检查是否为生产模式
+    /// Check if running in production mode
+    pub fn is_production(&self) -> bool {
+        self.mode == RunMode::Production || self.email_provider.force_self_hosted
+    }
+
+    /// 获取推荐的邮箱配置信息
+    /// Get recommended email configuration
+    pub fn get_email_config_recommendation(&self) -> String {
+        if self.is_production() {
+            format!(
+                "🏭 生产模式 / Production Mode\n\
+                \n\
+                必须使用自建域名邮箱：\n\
+                Must use self-hosted domain emails:\n\
+                \n\
+                配置的生产域名 / Configured production domains:\n\
+                {}\n\
+                \n\
+                推荐配置 / Recommended setup:\n\
+                1. Postfix + Dovecot (完全自主控制)\n\
+                2. MailCow (开源邮件服务器套件)\n\
+                3. iRedMail (开源邮件服务器解决方案)\n\
+                4. 商业邮箱服务 (Zoho, Google Workspace, Microsoft 365)\n\
+                \n\
+                ⚠️  请确保域名已配置 SPF、DKIM、DMARC 记录以提高送达率\n\
+                ⚠️  Please ensure SPF, DKIM, DMARC records are configured for better deliverability",
+                self.email_provider.production_domains.join(", ")
+            )
+        } else {
+            format!(
+                "🧪 测试模式 / Test Mode\n\
+                \n\
+                可以使用临时邮箱进行测试：\n\
+                Can use temporary emails for testing:\n\
+                \n\
+                允许的提供商 / Allowed providers:\n\
+                {}\n\
+                \n\
+                ⚠️  警告：临时邮箱仅用于测试，不要用于生产环境！\n\
+                ⚠️  Warning: Temporary emails are for testing only, do not use in production!\n\
+                \n\
+                切换到生产模式 / Switch to production mode:\n\
+                在配置文件中设置: mode = \"production\"\n\
+                Set in config file: mode = \"production\"",
+                self.email_provider.allowed_temp_providers.join(", ")
+            )
+        }
+    }
 }
 
 impl Default for Config {
@@ -419,6 +567,21 @@ impl Default for Config {
                 font: "MiSans".to_string(),
                 font_path: "fonts/MiSans-Regular.ttf".to_string(),
             },
+            mode: RunMode::Test,
+            email_provider: EmailProviderSettings::default(),
+        }
+    }
+}
+
+impl Default for EmailProviderSettings {
+    fn default() -> Self {
+        EmailProviderSettings {
+            force_self_hosted: false,
+            allowed_temp_providers: vec![
+                "MailTm".to_string(),
+                "GuerrillaMail".to_string(),
+            ],
+            production_domains: vec!["example.com".to_string()],
         }
     }
 }

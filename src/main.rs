@@ -5,6 +5,7 @@
 //! Supports SMTP email verification, proxy access, multi-language UI, batch registration
 
 mod batch;
+mod browser_detector;
 mod captcha;
 mod config;
 mod email;
@@ -12,6 +13,7 @@ mod email_provider;
 mod gui;
 mod i18n;
 mod logging;
+mod recaptcha_solver;
 mod registration;
 
 use anyhow::Result;
@@ -293,6 +295,8 @@ async fn run_batch_registration(
         username: None,
         password: None,
         domain: config.smtp.domain.clone(),
+        api_key: None,
+        api_endpoint: None,
     };
 
     let mut email_manager = BatchEmailManager::new(email_config);
@@ -368,6 +372,8 @@ async fn run_create_emails(
         username: None,
         password: None,
         domain: config.smtp.domain.clone(),
+        api_key: None,
+        api_endpoint: None,
     };
 
     let mut email_manager = BatchEmailManager::new(email_config);

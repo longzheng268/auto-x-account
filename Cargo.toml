@@ -11,6 +11,9 @@ repository = "https://github.com/longzheng268/auto-x-account"
 keywords = ["proprietary", "commercial", "twitter", "automation"]
 categories = ["command-line-utilities"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(font_misans)'] }
+
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
 chromiumoxide = { version = "0.6", features = ["tokio-runtime"] }
@@ -27,6 +30,7 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive"] }
 dotenv = "0.15"
 regex = "1.10"
+md5 = "0.7"
 
 # GUI dependencies
 eframe = { version = "0.25", features = ["default"] }
