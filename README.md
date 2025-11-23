@@ -20,8 +20,10 @@
 - 🎨 **现代化 GUI** - 中国风界面设计，使用小米 MiSans 字体
 - 📧 **批量邮箱** - 支持批量创建和管理临时邮箱
 - 👥 **批量注册** - 支持批量注册 X 账号，可配置并发数
-- 🌐 **代理支持** - 三种代理模式：不使用、系统代理、手动配置
-- 🤖 **智能验证** - 自动处理邮箱验证，支持人机验证
+- 🌐 **代理支持** - 三种代理模式：不使用、系统代理、手动配置；浏览器和邮箱可分别配置
+- 🤖 **智能验证** - 自动处理邮箱验证，支持手动和第三方人机验证
+- 💾 **数据持久化** - 自动保存任务和账号数据到本地缓存
+- 📊 **完整日志** - 文件和控制台双输出，支持不同平台的标准日志路径
 - 💾 **数据导出** - 支持导出账号信息为 JSON、CSV、TXT 格式
 - 🌍 **多语言** - 支持中文和英文界面
 - 📦 **跨平台** - 支持 Windows、macOS、Linux
@@ -31,6 +33,7 @@
 - 📖 [静态编译指南](docs/static-build.md) - 如何构建完全静态链接的可执行文件
 - 📧 [MailCow 部署指南](docs/mailcow-setup.md) - 自建邮件服务器的完整方案
 - 🔧 [编译故障排查](docs/build-troubleshooting.md) - 解决各种编译错误和问题
+- 💾 [数据持久化和代理配置](docs/persistence-and-proxy.md) - 数据缓存、日志系统和代理分离配置说明
 
 ## 📥 安装
 
@@ -365,7 +368,9 @@ GUI 界面使用小米 MiSans 字体，提供更好的视觉体验。字体是�
     "host": "127.0.0.1",
     "port": 1080,
     "username": "",
-    "password": ""
+    "password": "",
+    "browser_enabled": true,
+    "email_enabled": false
   },
   "browser": {
     "headless": false,
@@ -389,6 +394,70 @@ GUI 界面使用小米 MiSans 字体，提供更好的视觉体验。字体是�
 - **`none`** - 不使用代理，直接连接
 - **`system`** - 自动检测并使用系统代理设置
 - **`manual`** - 使用手动配置的代理服务器
+
+### 代理分离配置（新功能）
+
+浏览器和邮箱现在可以分别配置是否使用代理：
+
+- **`browser_enabled`** - 浏览器是否使用代理（默认：true）
+- **`email_enabled`** - 邮箱是否使用代理（默认：false）
+
+**使用场景示例：**
+
+```json
+{
+  "proxy": {
+    "mode": "manual",
+    "type": "socks5",
+    "host": "127.0.0.1",
+    "port": 1080,
+    "browser_enabled": true,   // 浏览器使用代理访问 Twitter
+    "email_enabled": false     // 邮箱直连本地 SMTP 服务器
+  }
+}
+```
+
+详细配置说明请参考：[数据持久化和代理配置文档](docs/persistence-and-proxy.md)
+
+### 数据持久化和日志（新功能）
+
+系统现在自动保存所有任务和账号数据到本地缓存目录：
+
+**缓存目录位置：**
+- Windows: `%APPDATA%\auto-x-account\`
+- macOS: `~/Library/Application Support/auto-x-account/`
+- Linux: `~/.local/share/auto-x-account/`
+
+**日志文件位置：**
+- Windows: `%APPDATA%\auto-x-account\logs\`
+- macOS: `~/Library/Logs/auto-x-account/`
+- Linux: `~/.local/share/auto-x-account/logs/`
+
+程序会：
+- ✅ 自动保存任务进度和账号信息
+- ✅ 启动时加载历史数据
+- ✅ 同时输出日志到文件和控制台
+- ✅ 自动清理30天前的旧日志
+
+详细说明请参考：[数据持久化和代理配置文档](docs/persistence-and-proxy.md)
+
+### 人机验证处理
+
+系统支持两种人机验证方式：
+
+1. **手动模式**（推荐）
+   - 检测到验证码时程序暂停
+   - 用户手动完成验证
+   - 验证完成后自动继续
+   - 免费，成功率高
+
+2. **第三方服务**（可选）
+   - 支持 2Captcha、Anti-Captcha 等服务
+   - 全自动处理验证码
+   - 适合大批量注册
+   - 需要付费
+
+详细说明请参考代码中的 `src/captcha.rs` 文档注释。
 
 ### 邮箱服务提供商
 

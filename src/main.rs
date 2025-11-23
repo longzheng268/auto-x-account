@@ -11,6 +11,7 @@ mod email;
 mod email_provider;
 mod gui;
 mod i18n;
+mod logging;
 mod registration;
 
 use anyhow::Result;
@@ -101,13 +102,22 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 初始化日志
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into()),
-        )
-        .init();
+    // 初始化日志系统（文件 + 控制台）
+    // Initialize logging system (file + console)
+    if let Err(e) = logging::init_logging() {
+        eprintln!("日志系统初始化失败 / Failed to initialize logging: {}", e);
+        // 降级到简单的控制台日志
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive(tracing::Level::INFO.into()),
+            )
+            .init();
+    }
+
+    // 清理超过30天的旧日志
+    // Clean up logs older than 30 days
+    let _ = logging::cleanup_old_logs(30);
 
     let args = Args::parse();
 
@@ -205,7 +215,7 @@ async fn run_single_registration(config: Config, email: String, i18n: &I18n) -> 
             info!("{}", i18n.t("proxy_disabled"));
         }
         config::ProxyMode::System => {
-            if let Some(proxy_url) = config.get_proxy_url() {
+            if let Some(proxy_url) = config.get_proxy_url(config::ProxyTarget::Browser) {
                 info!("{}: {}", i18n.t("proxy_system"), proxy_url);
             } else {
                 warn!("{}", "系统代理模式已启用但未检测到代理设置");
@@ -213,11 +223,19 @@ async fn run_single_registration(config: Config, email: String, i18n: &I18n) -> 
         }
         config::ProxyMode::Manual => {
             info!(
-                "{}: {}://{}:{}",
+                "浏览器 {}: {}://{}:{}",
                 i18n.t("proxy_manual"),
                 config.proxy.proxy_type,
                 config.proxy.host,
                 config.proxy.port
+            );
+            info!(
+                "邮箱代理: {}",
+                if config.proxy.email_enabled {
+                    "已启用 / Enabled"
+                } else {
+                    "已禁用 / Disabled"
+                }
             );
         }
     }
@@ -289,6 +307,11 @@ async fn run_batch_registration(
     // 创建批量注册管理器
     let batch_manager =
         BatchRegistrationManager::new(config.clone(), email_service.get_handler(), email_manager);
+
+    // 加载缓存数据
+    if let Err(e) = batch_manager.load_from_cache().await {
+        warn!("加载缓存数据失败 / Failed to load cache: {}", e);
+    }
 
     // 开始批量注册
     let task_id = batch_manager

@@ -215,8 +215,8 @@ impl XRegistration {
         }
 
         // 配置代理
-        if let Some(proxy_url) = self.config.get_proxy_url() {
-            info!("使用代理: {}", proxy_url);
+        if let Some(proxy_url) = self.config.get_proxy_url(crate::config::ProxyTarget::Browser) {
+            info!("浏览器使用代理 / Browser using proxy: {}", proxy_url);
             builder = builder.arg(format!("--proxy-server={}", proxy_url));
         }
 
