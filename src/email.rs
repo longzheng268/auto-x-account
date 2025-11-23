@@ -108,9 +108,6 @@ fn extract_base_email(email: &str) -> Option<String> {
     }
     
     let username_parts: Vec<&str> = parts[0].split('+').collect();
-    if username_parts.is_empty() {
-        return None;
-    }
     
     Some(format!("{}@{}", username_parts[0], parts[1]))
 }

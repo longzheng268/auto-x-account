@@ -326,7 +326,7 @@ impl EmailProviderManager {
         
         Ok(TempEmail {
             address: email_address,
-            password: None, // Plus 模式不需要密码，验证码会发到基础邮箱
+            password: None, // Plus 模式不需要密码，验证码会发到基础邮箱 / Plus mode doesn't need password, verification codes go to base email
             token: None,
             provider,
         })
