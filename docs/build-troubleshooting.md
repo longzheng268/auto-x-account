@@ -123,7 +123,72 @@ choco install mingw -y
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-### 问题 3：Cargo 配置错误（jobs = 0）
+### 问题 2A：链接器找不到 winpthread（GNU 工具链）
+
+#### 错误信息
+
+```
+error: linking with `x86_64-w64-mingw32-gcc` failed: exit code: 1
+  |
+  = note: ld: cannot find -lwinpthread: No such file or directory
+```
+
+或者：
+
+```
+error: error calling dlltool 'dlltool.exe': program not found
+```
+
+#### 原因分析
+
+在使用 GNU 工具链（MinGW-w64）进行静态链接时，显式指定 `-lwinpthread` 可能会导致链接器无法找到库文件。当使用 `-static` 标志时，链接器应该自动处理 pthread 库的链接。
+
+#### 解决方案
+
+项目配置已修复此问题。`.cargo/config.toml` 中的 Windows GNU 工具链配置已移除了显式的 `-lwinpthread` 参数，改为让链接器在静态链接模式下自动处理：
+
+```toml
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+    "-C", "link-arg=-static-libgcc",
+    "-C", "link-arg=-static-libstdc++",
+    "-C", "link-arg=-static",
+    "-C", "target-feature=+crt-static",
+]
+```
+
+如果您仍然遇到此问题：
+
+1. 确保使用最新版本的代码：
+```powershell
+git pull origin main
+```
+
+2. 清理并重新编译：
+```powershell
+cargo clean
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+3. 验证 MinGW-w64 工具链已正确安装且在 PATH 中：
+```powershell
+# 检查 gcc 是否可用
+x86_64-w64-mingw32-gcc --version
+
+# 检查 dlltool 是否可用
+dlltool --version
+```
+
+4. 如果工具链不完整，重新安装 MinGW-w64：
+```powershell
+# 通过 Chocolatey
+choco install mingw -y --force
+
+# 或通过 MSYS2
+msys2 -c "pacman -S --noconfirm mingw-w64-x86_64-toolchain"
+```
+
+### 问题 4：Cargo 配置错误（jobs = 0）
 
 #### 错误信息
 
@@ -145,7 +210,7 @@ error: jobs may not be 0
 incremental = true
 ```
 
-### 问题 4：link.exe 找不到（MSVC 工具链）
+### 问题 5：link.exe 找不到（MSVC 工具链）
 
 #### 错误信息
 
@@ -183,7 +248,7 @@ $vsPath = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Too
 $env:Path = "$vsPath;$env:Path"
 ```
 
-### 问题 5：OpenSSL 相关错误
+### 问题 6：OpenSSL 相关错误
 
 #### 错误信息
 

@@ -16,7 +16,6 @@ rustflags = [
     "-C", "link-arg=-static-libgcc",
     "-C", "link-arg=-static-libstdc++",
     "-C", "link-arg=-static",
-    "-C", "link-arg=-lwinpthread",
     
     # 优化二进制文件大小
     # Optimize binary size
