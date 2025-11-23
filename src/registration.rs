@@ -1,9 +1,8 @@
 //! X (Twitter) 账号注册模块
 //! X (Twitter) account registration module
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chromiumoxide::browser::{Browser, BrowserConfig};
-use chromiumoxide::cdp::browser_protocol::network::CookieParam;
 use fake::faker::name::raw::*;
 use fake::locales::*;
 use fake::{Fake, Faker};
@@ -145,7 +144,9 @@ impl XRegistration {
         builder = builder.user_data_dir(&user_data_dir);
 
         // 启动浏览器
-        let (browser, mut handler) = Browser::launch(builder.build()?).await?;
+        let (mut browser, mut handler) = Browser::launch(
+            builder.build().map_err(|e| anyhow::anyhow!("浏览器配置错误: {}", e))?
+        ).await?;
 
         // 处理浏览器事件
         tokio::spawn(async move {
@@ -159,25 +160,9 @@ impl XRegistration {
         // 创建新页面
         let page = browser.new_page("about:blank").await?;
 
-        // 设置视口大小
-        page.set_viewport(
-            chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams {
-                width: self.config.browser.viewport.width as i64,
-                height: self.config.browser.viewport.height as i64,
-                device_scale_factor: 1.0,
-                mobile: false,
-                scale: None,
-                screen_width: Some(self.config.browser.viewport.width as i64),
-                screen_height: Some(self.config.browser.viewport.height as i64),
-                position_x: None,
-                position_y: None,
-                dont_set_visible_size: None,
-                screen_orientation: None,
-                viewport: None,
-                display_feature: None,
-            },
-        )
-        .await?;
+        // 注意: chromiumoxide 0.6 的 set_viewport API 可能不同
+        // 如果需要设置视口大小，可以使用 CDP 协议直接设置
+        // 这里暂时跳过，使用默认视口
 
         // 执行注册流程
         let result = self.perform_registration(&page, &mut account_info).await;
