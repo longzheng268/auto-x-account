@@ -1,0 +1,214 @@
+//! X (Twitter) 账号注册模块
+//! X (Twitter) account registration module
+
+use anyhow::{Result, Context};
+use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::cdp::browser_protocol::network::CookieParam;
+use futures::StreamExt;
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::time::sleep;
+use tracing::{info, error, warn};
+use fake::{Fake, Faker};
+use fake::faker::name::raw::*;
+use fake::locales::*;
+use serde::{Serialize, Deserialize};
+
+use crate::config::Config;
+use crate::email::EmailHandler;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountInfo {
+    pub email: String,
+    pub name: String,
+    pub username: String,
+    pub password: String,
+    pub birth_date: BirthDate,
+    pub created_at: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BirthDate {
+    pub month: String,
+    pub day: String,
+    pub year: String,
+}
+
+pub struct XRegistration {
+    config: Config,
+    email_handler: EmailHandler,
+}
+
+impl XRegistration {
+    pub fn new(config: Config, email_handler: EmailHandler) -> Self {
+        XRegistration {
+            config,
+            email_handler,
+        }
+    }
+
+    /// 生成账号信息
+    /// Generate account information
+    fn generate_account_info(&self, email: String) -> AccountInfo {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        let name: String = if self.config.language.starts_with("zh") {
+            Name(ZH_CN).fake()
+        } else {
+            Name(EN).fake()
+        };
+
+        let username = format!(
+            "user_{}_{}", 
+            Faker.fake::<String>().chars().filter(|c| c.is_alphanumeric()).take(8).collect::<String>(),
+            chrono::Utc::now().timestamp()
+        );
+
+        let password = format!(
+            "{}{}{}{}",
+            Faker.fake::<String>().chars().filter(|c| c.is_alphabetic()).take(4).collect::<String>(),
+            rng.gen_range(1000..9999),
+            Faker.fake::<String>().chars().filter(|c| c.is_uppercase()).take(2).collect::<String>(),
+            "!@"
+        );
+
+        let months = vec![
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        AccountInfo {
+            email,
+            name,
+            username,
+            password,
+            birth_date: BirthDate {
+                month: months[rng.gen_range(0..12)].to_string(),
+                day: rng.gen_range(1..29).to_string(),
+                year: rng.gen_range(1985..2003).to_string(),
+            },
+            created_at: chrono::Utc::now().to_rfc3339(),
+            status: "pending".to_string(),
+        }
+    }
+
+    /// 注册账号
+    /// Register account
+    pub async fn register_account(&self, email: String) -> Result<AccountInfo> {
+        let mut account_info = self.generate_account_info(email.clone());
+        
+        info!("开始注册账号: {}", account_info.email);
+
+        // 配置浏览器
+        let mut builder = BrowserConfig::builder();
+        
+        if !self.config.browser.headless {
+            builder = builder.with_head();
+        }
+
+        // 配置代理
+        if let Some(proxy_url) = self.config.get_proxy_url() {
+            info!("使用代理: {}", proxy_url);
+            builder = builder.arg(format!("--proxy-server={}", proxy_url));
+        }
+
+        // 设置用户数据目录
+        let user_data_dir = PathBuf::from(&self.config.browser.user_data_dir);
+        std::fs::create_dir_all(&user_data_dir)?;
+        builder = builder.user_data_dir(&user_data_dir);
+
+        // 启动浏览器
+        let (browser, mut handler) = Browser::launch(builder.build()?).await?;
+
+        // 处理浏览器事件
+        tokio::spawn(async move {
+            while let Some(event) = handler.next().await {
+                if let Err(e) = event {
+                    error!("浏览器事件错误: {}", e);
+                }
+            }
+        });
+
+        // 创建新页面
+        let page = browser.new_page("about:blank").await?;
+
+        // 设置视口大小
+        page.set_viewport(chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams {
+            width: self.config.browser.viewport.width as i64,
+            height: self.config.browser.viewport.height as i64,
+            device_scale_factor: 1.0,
+            mobile: false,
+            scale: None,
+            screen_width: Some(self.config.browser.viewport.width as i64),
+            screen_height: Some(self.config.browser.viewport.height as i64),
+            position_x: None,
+            position_y: None,
+            dont_set_visible_size: None,
+            screen_orientation: None,
+            viewport: None,
+            display_feature: None,
+        })
+        .await?;
+
+        // 执行注册流程
+        let result = self.perform_registration(&page, &mut account_info).await;
+
+        // 清理
+        if let Err(e) = browser.close().await {
+            warn!("关闭浏览器时出错: {}", e);
+        }
+
+        result
+    }
+
+    async fn perform_registration(
+        &self,
+        page: &chromiumoxide::Page,
+        account_info: &mut AccountInfo,
+    ) -> Result<AccountInfo> {
+        // 访问注册页面
+        info!("访问注册页面: {}", self.config.x_account.base_url);
+        page.goto(&self.config.x_account.base_url).await?;
+        sleep(Duration::from_secs(3)).await;
+
+        // 截图
+        self.take_screenshot(page, "01_signup_page").await?;
+
+        // 这里需要实现具体的注册步骤
+        // 由于 X/Twitter 的注册流程可能会变化，这里提供一个框架
+        
+        info!("填写注册信息...");
+        // TODO: 实现具体的表单填写逻辑
+        
+        info!("等待验证码...");
+        let timeout = Duration::from_secs(self.config.x_account.email_wait_timeout);
+        if let Some(code) = self.email_handler.wait_for_verification_code(&account_info.email, timeout).await {
+            info!("收到验证码: {}", code);
+            // TODO: 输入验证码
+        } else {
+            anyhow::bail!("未收到验证码");
+        }
+
+        account_info.status = "registered".to_string();
+        info!("账号注册成功: {}", account_info.username);
+
+        Ok(account_info.clone())
+    }
+
+    async fn take_screenshot(&self, page: &chromiumoxide::Page, name: &str) -> Result<()> {
+        let dir = PathBuf::from(&self.config.output.screenshots_dir);
+        std::fs::create_dir_all(&dir)?;
+
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let filename = format!("{}_{}.png", name, timestamp);
+        let filepath = dir.join(filename);
+
+        let screenshot = page.screenshot(chromiumoxide::page::ScreenshotParams::builder().build()).await?;
+        std::fs::write(&filepath, screenshot)?;
+        
+        info!("已保存截图: {}", filepath.display());
+        Ok(())
+    }
+}

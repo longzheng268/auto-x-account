@@ -1,0 +1,48 @@
+[package]
+name = "auto-x-account"
+version = "0.1.0"
+edition = "2021"
+authors = ["Auto X Account Team"]
+description = "自动化 X (Twitter) 账号注册系统 - 支持 SMTP 邮箱验证和代理"
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+chromiumoxide = { version = "0.6", features = ["tokio-runtime"] }
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.11", features = ["json", "socks"] }
+fake = { version = "2.9", features = ["derive", "chrono"] }
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.4", features = ["derive"] }
+dotenv = "0.15"
+regex = "1.10"
+
+# GUI dependencies
+eframe = { version = "0.25", features = ["default"] }
+egui = "0.25"
+egui_extras = { version = "0.25", features = ["image"] }
+rfd = "0.13"
+image = "0.24"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[package.metadata.bundle]
+name = "X账号自动注册系统"
+identifier = "com.autoxaccount.app"
+icon = ["assets/icon.png"]
+version = "0.1.0"
+resources = ["assets/*", "fonts/*"]
+copyright = "Copyright (c) 2024"
+category = "Utility"
+short_description = "自动化 X 账号注册工具"
+long_description = "使用浏览器自动化和 SMTP 邮箱验证自动注册 X (Twitter) 账号"
