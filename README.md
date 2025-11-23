@@ -225,6 +225,67 @@ cargo clean
 rm -rf browser_data screenshots logs accounts.json config.json
 ```
 
+## 📦 首次运行配置
+
+### 下载 Chromium 浏览器（必需）
+
+本程序使用开源的 Chromium 浏览器进行自动化操作。首次运行前需要下载：
+
+**方式一：自动下载（推荐）**
+
+**Linux/macOS:**
+```bash
+./download-chromium.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\download-chromium.ps1
+```
+
+脚本会自动下载适合当前系统的最新 Chromium 版本并放置在 `chromium/` 目录。
+
+**方式二：手动配置**
+
+如果系统已安装 Chrome 或 Chromium，可在配置文件中指定路径：
+
+```json
+{
+  "browser": {
+    "chrome_path": "/path/to/chrome"
+  }
+}
+```
+
+程序会按以下优先级查找浏览器：
+1. 配置文件中指定的 `chrome_path`
+2. 程序目录下的 `chromium/` 目录
+3. 系统安装的 Chrome/Chromium
+
+### 下载 MiSans 字体（可选）
+
+GUI 界面使用小米 MiSans 字体，提供更好的视觉体验。字体是可选的，如果未安装会自动使用内置的 fallback 字体。
+
+**下载字体：**
+
+**Linux/macOS:**
+```bash
+./download-fonts.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\download-fonts.ps1
+```
+
+**或手动下载：**
+
+1. 访问 [MiSans 字体下载页面](https://hyperos.mi.com/font-download/MiSans.zip)
+2. 下载并解压到 `fonts/MiSans/` 目录
+3. 确保文件路径为: `fonts/MiSans/ttf/MiSans-Regular.ttf`
+
+**注意**: 字体文件会在编译时嵌入到二进制文件中，如果使用预编译版本则不需要手动下载字体。
+
 ## 🚀 快速开始
 
 ### GUI 模式（默认）
