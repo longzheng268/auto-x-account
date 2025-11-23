@@ -1,7 +1,7 @@
 //! GUI 模块 - 使用 egui 创建现代化的中国风界面
 //! GUI module - Modern Chinese-style interface using egui
 
-use crate::config::Config;
+use crate::config::{Config, ProxyMode};
 use eframe::egui;
 use egui::{Color32, FontId, RichText, Rounding, Stroke, Vec2};
 use std::sync::{Arc, Mutex};
@@ -151,7 +151,7 @@ impl AutoXAccountApp {
     }
 
     fn render_main_panel(&self, ui: &mut egui::Ui) {
-        let state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
 
         // 注册卡片
         egui::Frame::none()
@@ -174,7 +174,7 @@ impl AutoXAccountApp {
                     ui.label(RichText::new("邮箱地址:").size(16.0));
                     ui.add_space(8.0);
 
-                    let email_edit = egui::TextEdit::singleline(&mut state.email.clone())
+                    let email_edit = egui::TextEdit::singleline(&mut state.email)
                         .desired_width(300.0)
                         .hint_text("请输入邮箱地址")
                         .font(FontId::proportional(16.0));
@@ -385,17 +385,17 @@ impl AutoXAccountApp {
 
                         ui.radio_value(
                             &mut state.config.proxy.mode,
-                            config::ProxyMode::None,
+                            ProxyMode::None,
                             "不使用代理",
                         );
                         ui.radio_value(
                             &mut state.config.proxy.mode,
-                            config::ProxyMode::System,
+                            ProxyMode::System,
                             "系统代理",
                         );
                         ui.radio_value(
                             &mut state.config.proxy.mode,
-                            config::ProxyMode::Manual,
+                            ProxyMode::Manual,
                             "手动配置",
                         );
                     });
@@ -404,14 +404,14 @@ impl AutoXAccountApp {
 
                     // 根据模式显示不同的设置
                     match state.config.proxy.mode {
-                        config::ProxyMode::None => {
+                        ProxyMode::None => {
                             ui.label(
                                 RichText::new("ℹ 不使用任何代理，直接连接")
                                     .size(14.0)
                                     .color(self.colors.text_secondary),
                             );
                         }
-                        config::ProxyMode::System => {
+                        ProxyMode::System => {
                             ui.label(
                                 RichText::new("ℹ 自动检测并使用系统配置的代理")
                                     .size(14.0)
@@ -433,7 +433,7 @@ impl AutoXAccountApp {
                                 );
                             }
                         }
-                        config::ProxyMode::Manual => {
+                        ProxyMode::Manual => {
                             ui.label(
                                 RichText::new("ℹ 手动配置代理服务器")
                                     .size(14.0)
@@ -570,8 +570,9 @@ impl eframe::App for AutoXAccountApp {
 
 pub fn run_gui() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(Vec2::new(1024.0, 768.0)),
-        min_window_size: Some(Vec2::new(800.0, 600.0)),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1024.0, 768.0])
+            .with_min_inner_size([800.0, 600.0]),
         ..Default::default()
     };
 

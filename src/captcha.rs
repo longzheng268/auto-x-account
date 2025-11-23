@@ -84,7 +84,7 @@ impl CaptchaHandler {
     async fn handle_iframe_captcha(
         &self,
         page: &chromiumoxide::Page,
-        captcha_type: CaptchaType,
+        _captcha_type: CaptchaType,
     ) -> Result<bool> {
         if let Some(service) = &self.captcha_service {
             info!("使用第三方验证服务: {}", service.service_type);
@@ -146,7 +146,7 @@ impl CaptchaHandler {
     }
 
     /// 等待用户手动完成验证
-    async fn wait_for_manual_completion(&self, page: &chromiumoxide::Page) -> Result<bool> {
+    async fn wait_for_manual_completion(&self, _page: &chromiumoxide::Page) -> Result<bool> {
         info!("等待手动完成验证码...");
         info!("请在浏览器中完成验证，完成后程序将自动继续");
 
@@ -197,7 +197,7 @@ impl CaptchaHandler {
         None
     }
 
-    async fn check_element_exists(&self, page: &chromiumoxide::Page, selector: &str) -> bool {
+    async fn check_element_exists(&self, _page: &chromiumoxide::Page, _selector: &str) -> bool {
         // TODO: 实现元素检查逻辑
         // page.query_selector(selector).await.is_ok()
         false

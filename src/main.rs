@@ -16,10 +16,10 @@ mod registration;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber;
 
-use batch::{BatchRegistrationConfig, BatchRegistrationManager};
+use batch::BatchRegistrationManager;
 use config::Config;
 use email::EmailService;
 use email_provider::{BatchEmailManager, EmailProvider, EmailProviderConfig};
@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
     // 如果没有指定子命令，默认启动 GUI
     if args.command.is_none() {
         info!("启动 GUI 界面...");
-        return gui::run_gui();
+        return gui::run_gui().map_err(|e| anyhow::anyhow!("GUI error: {}", e));
     }
 
     // 加载配置
@@ -139,12 +139,12 @@ async fn main() -> Result<()> {
 
     match args.command.unwrap() {
         Commands::Gui => {
-            gui::run_gui()?;
+            gui::run_gui().map_err(|e| anyhow::anyhow!("GUI error: {}", e))?;
         }
 
         Commands::Register { email, proxy } => {
             if let Some(proxy_url) = proxy {
-                config.proxy.enable = true;
+                config.proxy.mode = crate::config::ProxyMode::Manual;
                 if let Some((proxy_type, rest)) = proxy_url.split_once("://") {
                     config.proxy.proxy_type = proxy_type.to_string();
                     if let Some((host, port)) = rest.split_once(':') {
@@ -255,7 +255,7 @@ async fn run_batch_registration(
     count: usize,
     concurrent: usize,
     use_existing_emails: bool,
-    i18n: &I18n,
+    _i18n: &I18n,
 ) -> Result<()> {
     info!("开始批量注册 {} 个账号，并发数: {}", count, concurrent);
 
@@ -332,7 +332,7 @@ async fn run_create_emails(
     count: usize,
     output: Option<String>,
     verify: bool,
-    i18n: &I18n,
+    _i18n: &I18n,
 ) -> Result<()> {
     info!("开始批量创建 {} 个邮箱", count);
 
@@ -368,7 +368,7 @@ async fn run_create_emails(
     Ok(())
 }
 
-async fn run_export_accounts(output: String, format: String, i18n: &I18n) -> Result<()> {
+async fn run_export_accounts(output: String, _format: String, _i18n: &I18n) -> Result<()> {
     info!("导出账号到文件: {}", output);
 
     // TODO: 从存储中加载账号并导出

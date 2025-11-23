@@ -32,8 +32,10 @@ accounts.json
 .DS_Store
 Thumbs.db
 
-# Fonts cache
-fonts/.cache/
+# Fonts - exclude font files but keep README
+fonts/*
+!fonts/README.md
+!fonts/.gitkeep
 
 
 # Added by cargo

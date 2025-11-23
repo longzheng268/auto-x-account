@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::config::Config;
 use crate::email::EmailHandler;
-use crate::email_provider::{BatchEmailManager, TempEmail};
+use crate::email_provider::BatchEmailManager;
 use crate::registration::{AccountInfo, XRegistration};
 
 /// 批量注册任务状态
@@ -94,12 +94,13 @@ impl BatchRegistrationManager {
 
         // 启动批量注册
         let manager = self.clone_for_task();
+        let task_id_clone = task_id.clone();
         tokio::spawn(async move {
             if let Err(e) = manager
-                .execute_batch_registration(task_id.clone(), count, concurrent, use_existing_emails)
+                .execute_batch_registration(task_id_clone, count, concurrent, use_existing_emails)
                 .await
             {
-                error!("批量注册任务 {} 失败: {}", task_id, e);
+                error!("批量注册任务失败: {}", e);
             }
         });
 
@@ -167,8 +168,8 @@ impl BatchRegistrationManager {
         } else {
             // 创建新邮箱
             let mut email_mgr = self.email_manager.lock().await;
-            let emails = email_mgr.create_batch(1, false).await?;
-            emails.into_iter().next().context("创建邮箱失败")?
+            email_mgr.create_batch(1, false).await?;
+            email_mgr.get_unused_email().context("创建邮箱后获取失败")?
         };
 
         info!("使用邮箱: {}", email.address);
