@@ -57,16 +57,42 @@ pub struct EmailProviderConfig {
 /// 邮箱服务管理器
 pub struct EmailProviderManager {
     config: EmailProviderConfig,
+    /// 用于验证的运行模式配置（可选）
+    validation_config: Option<crate::config::Config>,
 }
 
 impl EmailProviderManager {
     pub fn new(config: EmailProviderConfig) -> Self {
-        EmailProviderManager { config }
+        EmailProviderManager { 
+            config,
+            validation_config: None,
+        }
     }
 
-    /// 批量创建临时邮箱
-    /// Batch create temporary emails
+    /// 创建带验证的管理器
+    /// Create manager with validation config
+    pub fn new_with_validation(config: EmailProviderConfig, validation_config: crate::config::Config) -> Self {
+        EmailProviderManager {
+            config,
+            validation_config: Some(validation_config),
+        }
+    }
+
+    /// 验证当前提供商配置
+    /// Validate current provider configuration
+    fn validate_provider(&self) -> Result<()> {
+        if let Some(validation_cfg) = &self.validation_config {
+            validation_cfg.validate_email_provider(&self.config.provider)?;
+        }
+        Ok(())
+    }
+
+    /// 批量创建临时邮箱（带生产模式检查）
+    /// Batch create temporary emails (with production mode check)
     pub async fn batch_create_emails(&self, count: usize) -> Result<Vec<TempEmail>> {
+        // 验证提供商
+        self.validate_provider()?;
+
         info!("开始批量创建 {} 个邮箱", count);
 
         let mut emails = Vec::new();
@@ -153,8 +179,12 @@ impl EmailProviderManager {
         }
     }
 
-    /// 创建临时邮箱
+    /// 创建临时邮箱（带生产模式检查）
+    /// Create temporary email (with production mode check)
     pub async fn create_temp_email(&self) -> Result<TempEmail> {
+        // 验证提供商
+        self.validate_provider()?;
+
         match self.config.provider {
             EmailProvider::MailTm => self.create_mail_tm_account().await,
             EmailProvider::GuerrillaMail => self.create_guerrilla_account().await,

@@ -13,6 +13,7 @@ mod email_provider;
 mod gui;
 mod i18n;
 mod logging;
+mod recaptcha_solver;
 mod registration;
 
 use anyhow::Result;

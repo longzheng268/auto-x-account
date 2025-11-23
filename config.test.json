@@ -1,0 +1,91 @@
+{
+  "// 说明": "配置文件示例 - 测试环境配置",
+  "// Description": "Configuration example - Test environment",
+  "// 警告": "临时邮箱仅用于测试，不要用于生产！",
+  "// Warning": "Temporary emails are for testing only, do not use in production!",
+
+  "// ========== 运行模式配置 / Running Mode Configuration ==========": "",
+  "mode": "test",
+  "// 可选值 / Options: \"production\" (生产) 或 \"test\" (测试)": "",
+  "// 测试模式允许使用临时邮箱进行功能测试": "",
+
+  "// ========== 邮箱提供商配置 / Email Provider Configuration ==========": "",
+  "email_provider": {
+    "force_self_hosted": false,
+    "// 是否强制自建域名": "",
+    
+    "production_domains": [
+      "example.com"
+    ],
+    "// 生产域名列表（测试时可以不配置）": "",
+    
+    "allowed_temp_providers": [
+      "MailTm",
+      "GuerrillaMail",
+      "TempMail",
+      "TenMinuteMail",
+      "DropMail",
+      "Mailinator"
+    ]
+    "// 允许的临时邮箱提供商（测试模式可用）": "",
+    "// Allowed temporary email providers (available in test mode)": ""
+  },
+
+  "// ========== SMTP 服务器配置 / SMTP Server Configuration ==========": "",
+  "smtp": {
+    "host": "0.0.0.0",
+    "port": 8025,
+    "domain": "example.com",
+    "enable": true,
+    "// 说明": "测试模式可以使用简单的 SMTP 接收服务器"
+  },
+
+  "// ========== 语言设置 / Language Settings ==========": "",
+  "language": "zh-CN",
+
+  "// ========== 代理配置 / Proxy Configuration ==========": "",
+  "proxy": {
+    "mode": "none",
+    "// 测试时可以不使用代理": "",
+    "type": "socks5",
+    "host": "127.0.0.1",
+    "port": 1080,
+    "username": null,
+    "password": null,
+    "browser_enabled": true,
+    "email_enabled": false
+  },
+
+  "// ========== 浏览器配置 / Browser Configuration ==========": "",
+  "browser": {
+    "headless": false,
+    "// 测试时建议关闭无头模式以便观察": "",
+    "timeout": 30000,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "user_data_dir": "browser_data_test",
+    "chrome_path": null
+  },
+
+  "// ========== X 账号配置 / X Account Configuration ==========": "",
+  "x_account": {
+    "base_url": "https://twitter.com/i/flow/signup",
+    "email_wait_timeout": 120,
+    "retry_times": 3
+  },
+
+  "// ========== 输出配置 / Output Configuration ==========": "",
+  "output": {
+    "screenshots_dir": "screenshots_test",
+    "logs_dir": "logs_test",
+    "accounts_file": "accounts_test.json"
+  },
+
+  "// ========== UI 配置 / UI Configuration ==========": "",
+  "ui": {
+    "font": "MiSans",
+    "font_path": "fonts/MiSans-Regular.ttf"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "// 说明": "配置文件示例 - 生产环境配置",
+  "// Description": "Configuration example - Production environment",
+  "// 重要": "生产环境必须使用自己的域名邮箱！",
+  "// Important": "Production environment must use your own domain emails!",
+
+  "// ========== 运行模式配置 / Running Mode Configuration ==========": "",
+  "mode": "production",
+  "// 可选值 / Options: \"production\" (生产) 或 \"test\" (测试)": "",
+  "// 生产模式只允许使用自建域名，测试模式可以使用临时邮箱": "",
+
+  "// ========== 邮箱提供商配置 / Email Provider Configuration ==========": "",
+  "email_provider": {
+    "force_self_hosted": true,
+    "// 强制使用自建域名（生产模式下自动启用）": "",
+    
+    "production_domains": [
+      "yourdomain.com",
+      "mail.yourdomain.com"
+    ],
+    "// 生产域名列表 - 必须配置您自己的域名！": "",
+    "// Production domains - Must configure your own domains!": "",
+    
+    "allowed_temp_providers": [
+      "MailTm",
+      "GuerrillaMail"
+    ]
+    "// 允许的临时邮箱（仅测试模式可用）": ""
+  },
+
+  "// ========== SMTP 服务器配置 / SMTP Server Configuration ==========": "",
+  "smtp": {
+    "host": "mail.yourdomain.com",
+    "port": 25,
+    "domain": "yourdomain.com",
+    "enable": true,
+    "// 说明": "配置您自己的 SMTP 服务器",
+    "// 推荐方案": "Postfix, MailCow, iRedMail"
+  },
+
+  "// ========== 语言设置 / Language Settings ==========": "",
+  "language": "zh-CN",
+
+  "// ========== 代理配置 / Proxy Configuration ==========": "",
+  "proxy": {
+    "mode": "manual",
+    "// 模式 / Mode": "none, system, manual",
+    "type": "socks5",
+    "// 类型 / Type": "http, https, socks5",
+    "host": "127.0.0.1",
+    "port": 1080,
+    "username": null,
+    "password": null,
+    "browser_enabled": true,
+    "email_enabled": false
+  },
+
+  "// ========== 浏览器配置 / Browser Configuration ==========": "",
+  "browser": {
+    "headless": false,
+    "// 无头模式 - 建议设为 false 以便监控": "",
+    "timeout": 30000,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "user_data_dir": "browser_data",
+    "chrome_path": null
+    "// Chrome路径 - 留空则自动检测": ""
+  },
+
+  "// ========== X 账号配置 / X Account Configuration ==========": "",
+  "x_account": {
+    "base_url": "https://twitter.com/i/flow/signup",
+    "email_wait_timeout": 120,
+    "// 邮箱验证码等待时间（秒）": "",
+    "retry_times": 3
+  },
+
+  "// ========== 输出配置 / Output Configuration ==========": "",
+  "output": {
+    "screenshots_dir": "screenshots",
+    "logs_dir": "logs",
+    "accounts_file": "accounts.json"
+  },
+
+  "// ========== UI 配置 / UI Configuration ==========": "",
+  "ui": {
+    "font": "MiSans",
+    "font_path": "fonts/MiSans-Regular.ttf"
+  }
+}
