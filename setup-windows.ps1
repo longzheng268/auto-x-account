@@ -159,14 +159,59 @@ function Install-RustToolchain {
         Write-Host "Rust 已安装" -ForegroundColor Green
         Write-Host "Rust is already installed" -ForegroundColor Green
         
-        # 如果选择了 GNU 工具链，添加 GNU target
+        # 如果选择了 GNU 工具链，添加 GNU target 并设置为默认
         if ($UseGNU) {
-            Write-Host "配置 GNU 工具链目标..." -ForegroundColor Green
-            Write-Host "Configuring GNU toolchain target..." -ForegroundColor Green
+            Write-Host ""
+            Write-Host "配置 GNU 工具链..." -ForegroundColor Green
+            Write-Host "Configuring GNU toolchain..." -ForegroundColor Green
+            
+            # 添加 GNU 目标
+            Write-Host "  添加 x86_64-pc-windows-gnu 目标..." -ForegroundColor Gray
             rustup target add x86_64-pc-windows-gnu 2>&1 | Out-Null
+            
+            # 关键：设置默认主机为 GNU，避免 cargo 反复同步 MSVC 工具链
+            Write-Host "  设置默认主机为 x86_64-pc-windows-gnu..." -ForegroundColor Gray
+            rustup set default-host x86_64-pc-windows-gnu 2>&1 | Out-Null
+            
+            # 安装并设置 GNU 工具链为默认
+            Write-Host "  安装并设置 GNU 工具链为默认..." -ForegroundColor Gray
+            rustup toolchain install stable-x86_64-pc-windows-gnu 2>&1 | Out-Null
             rustup default stable-x86_64-pc-windows-gnu 2>&1 | Out-Null
+            
+            Write-Host "GNU 工具链配置完成!" -ForegroundColor Green
+            Write-Host "GNU toolchain configured!" -ForegroundColor Green
         }
         return $true
+    }
+}
+
+# 配置 MinGW 环境变量
+function Configure-MinGWPath {
+    Write-Host ""
+    Write-Host "配置 MinGW 环境变量..." -ForegroundColor Green
+    Write-Host "Configuring MinGW environment..." -ForegroundColor Green
+    
+    $msys2Root = scoop prefix msys2 2>$null
+    if ($msys2Root -and (Test-Path "$msys2Root\mingw64\bin")) {
+        $mingwBin = "$msys2Root\mingw64\bin"
+        
+        # 检查是否已在 PATH 中
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($currentPath -notlike "*$mingwBin*") {
+            Write-Host "  添加 MinGW bin 目录到 PATH: $mingwBin" -ForegroundColor Gray
+            [Environment]::SetEnvironmentVariable("Path", "$mingwBin;$currentPath", "User")
+            $env:Path = "$mingwBin;$env:Path"
+            Write-Host "MinGW 环境变量配置完成!" -ForegroundColor Green
+            Write-Host "MinGW environment configured!" -ForegroundColor Green
+        } else {
+            Write-Host "MinGW 已在 PATH 中" -ForegroundColor Green
+            Write-Host "MinGW already in PATH" -ForegroundColor Green
+        }
+        return $true
+    } else {
+        Write-Host "警告: 未找到 MSYS2 MinGW 目录" -ForegroundColor Yellow
+        Write-Host "Warning: MSYS2 MinGW directory not found" -ForegroundColor Yellow
+        return $false
     }
 }
 
@@ -287,6 +332,9 @@ if ($useGNU) {
         Write-Host "GNU toolchain installation failed, cannot continue" -ForegroundColor Red
         exit 1
     }
+    
+    # 配置 MinGW 环境变量
+    Configure-MinGWPath | Out-Null
 }
 
 # 安装 Rust
@@ -354,6 +402,11 @@ Write-Host "Git:" -ForegroundColor Yellow
 git --version
 
 Write-Host ""
+Write-Host "当前 Rust 工具链配置:" -ForegroundColor Yellow
+Write-Host "Current Rust Toolchain Configuration:" -ForegroundColor Yellow
+rustup show
+
+Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "下一步 / Next Steps:" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Cyan
@@ -363,16 +416,36 @@ if ($useGNU) {
     Write-Host "✓ 您已选择使用 GNU 工具链 (MinGW-w64)" -ForegroundColor Green
     Write-Host "✓ You have chosen to use GNU toolchain (MinGW-w64)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "注意: 使用 GNU 工具链编译时，请确保:" -ForegroundColor Yellow
-    Write-Host "Note: When building with GNU toolchain, please ensure:" -ForegroundColor Yellow
-    Write-Host "  - 某些 Windows 特定功能可能有差异" -ForegroundColor Gray
-    Write-Host "    Some Windows-specific features may behave differently" -ForegroundColor Gray
-    Write-Host "  - 如果遇到问题，可以重新运行此脚本选择安装 MSVC" -ForegroundColor Gray
-    Write-Host "    If you encounter issues, re-run this script to install MSVC" -ForegroundColor Gray
+    Write-Host "GNU 工具链优势:" -ForegroundColor Cyan
+    Write-Host "GNU Toolchain Benefits:" -ForegroundColor Cyan
+    Write-Host "  ✅ 完全静态链接，生成独立 exe 文件" -ForegroundColor Gray
+    Write-Host "     Fully static linking, generates standalone exe" -ForegroundColor Gray
+    Write-Host "  ✅ 无需 Visual C++ 运行时库" -ForegroundColor Gray
+    Write-Host "     No Visual C++ runtime required" -ForegroundColor Gray
+    Write-Host "  ✅ 适合绿色便携部署" -ForegroundColor Gray
+    Write-Host "     Perfect for portable deployment" -ForegroundColor Gray
+    Write-Host "  ✅ 已自动配置默认工具链，避免 MSVC 工具链反复同步" -ForegroundColor Gray
+    Write-Host "     Default toolchain configured to prevent MSVC syncing issues" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "重要提示:" -ForegroundColor Yellow
+    Write-Host "Important Notes:" -ForegroundColor Yellow
+    Write-Host "  - 如果看到 'syncing channel updates for MSVC'，请打开新的 PowerShell 窗口" -ForegroundColor Gray
+    Write-Host "    If you see 'syncing channel updates for MSVC', open a new PowerShell window" -ForegroundColor Gray
+    Write-Host "  - MinGW 路径已添加到 PATH 环境变量" -ForegroundColor Gray
+    Write-Host "    MinGW path has been added to PATH environment variable" -ForegroundColor Gray
     Write-Host ""
 } else {
-    Write-Host "✓ 您正在使用 MSVC 工具链（推荐）" -ForegroundColor Green
-    Write-Host "✓ You are using MSVC toolchain (recommended)" -ForegroundColor Green
+    Write-Host "✓ 您正在使用 MSVC 工具链（官方推荐）" -ForegroundColor Green
+    Write-Host "✓ You are using MSVC toolchain (officially recommended)" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "MSVC 工具链优势:" -ForegroundColor Cyan
+    Write-Host "MSVC Toolchain Benefits:" -ForegroundColor Cyan
+    Write-Host "  ✅ Rust 官方推荐，兼容性最好" -ForegroundColor Gray
+    Write-Host "     Officially recommended by Rust, best compatibility" -ForegroundColor Gray
+    Write-Host "  ✅ 与 Windows 系统集成更紧密" -ForegroundColor Gray
+    Write-Host "     Better Windows system integration" -ForegroundColor Gray
+    Write-Host "  ✅ Visual Studio 调试器支持完善" -ForegroundColor Gray
+    Write-Host "     Excellent Visual Studio debugger support" -ForegroundColor Gray
     Write-Host ""
 }
 
@@ -384,7 +457,9 @@ Write-Host "   cd auto-x-account" -ForegroundColor Gray
 Write-Host ""
 Write-Host "3. 编译项目 / Build the project:" -ForegroundColor White
 if ($useGNU) {
-    Write-Host "   cargo build --release --target x86_64-pc-windows-gnu" -ForegroundColor Gray
+    Write-Host "   cargo build --release" -ForegroundColor Gray
+    Write-Host "   # 注意: 已设置 GNU 为默认工具链，无需指定 --target" -ForegroundColor DarkGray
+    Write-Host "   # Note: GNU is now default, no need for --target flag" -ForegroundColor DarkGray
 } else {
     Write-Host "   cargo build --release" -ForegroundColor Gray
 }
@@ -394,43 +469,12 @@ Write-Host "   .\target\release\auto-x-account.exe" -ForegroundColor Gray
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
 
-# 询问是否立即编译项目
-if (Test-Path "Cargo.toml") {
-    Write-Host ""
-    $compile = Read-Host "检测到 Cargo.toml，是否立即编译项目？(Y/N) / Cargo.toml detected, compile now? (Y/N)"
-    if ($compile -eq "Y" -or $compile -eq "y") {
-        Write-Host ""
-        Write-Host "正在编译项目..." -ForegroundColor Green
-        Write-Host "Compiling project..." -ForegroundColor Green
-        
-        if ($useGNU) {
-            cargo build --release --target x86_64-pc-windows-gnu
-        } else {
-            cargo build --release
-        }
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host ""
-            Write-Host "编译成功! 可执行文件位于: .\target\release\auto-x-account.exe" -ForegroundColor Green
-            Write-Host "Build successful! Executable located at: .\target\release\auto-x-account.exe" -ForegroundColor Green
-        } else {
-            Write-Host ""
-            Write-Host "编译失败，请检查错误信息" -ForegroundColor Red
-            Write-Host "Build failed, please check error messages" -ForegroundColor Red
-            Write-Host ""
-            
-            if (-not $useGNU -and -not (Test-MSVCInstalled)) {
-                Write-Host "提示: 如果错误提示找不到 link.exe，请:" -ForegroundColor Yellow
-                Write-Host "Hint: If error says link.exe not found, please:" -ForegroundColor Yellow
-                Write-Host "  1. 安装 Visual Studio Build Tools" -ForegroundColor Gray
-                Write-Host "     Install Visual Studio Build Tools" -ForegroundColor Gray
-                Write-Host "  2. 或重新运行此脚本并选择 GNU 工具链" -ForegroundColor Gray
-                Write-Host "     Or re-run this script and choose GNU toolchain" -ForegroundColor Gray
-            }
-        }
-    }
-}
-
 Write-Host ""
-Write-Host "脚本执行完成!" -ForegroundColor Green
-Write-Host "Script execution completed!" -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "环境配置完成!" -ForegroundColor Green
+Write-Host "Environment setup completed!" -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "提示: 编译项目请在新的 PowerShell 窗口中执行，以确保环境变量生效" -ForegroundColor Yellow
+Write-Host "Tip: Please compile in a new PowerShell window to ensure environment variables are loaded" -ForegroundColor Yellow
+Write-Host ""
