@@ -54,6 +54,12 @@
 powershell -ExecutionPolicy Bypass -File setup-windows.ps1
 ```
 
+脚本会自动检测 MSVC 工具链，如果未安装，会提供两个选项：
+1. **安装 Visual Studio Build Tools**（推荐，兼容性最好）
+2. **使用 GNU 工具链**（通过 MSYS2，无需 Visual Studio）
+
+**注意**: 如果遇到 `link.exe` 找不到的错误，请重新运行安装脚本并按提示操作。
+
 **macOS:**
 ```bash
 ./setup-macos.sh
@@ -66,6 +72,10 @@ powershell -ExecutionPolicy Bypass -File setup-windows.ps1
 
 #### 手动编译
 
+**前提条件**：
+- **Windows**: 需要安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 或使用 GNU 工具链
+- **macOS/Linux**: 需要基本的构建工具（gcc, make 等）
+
 ```bash
 # 克隆项目
 git clone https://github.com/longzheng268/auto-x-account.git
@@ -73,6 +83,9 @@ cd auto-x-account
 
 # 编译发布版本
 cargo build --release
+
+# Windows 使用 GNU 工具链编译（可选）
+cargo build --release --target x86_64-pc-windows-gnu
 
 # 运行
 ./target/release/auto-x-account
@@ -276,6 +289,22 @@ cargo fmt --check
 ```
 
 ## 📝 常见问题
+
+### Q: Windows 编译时提示 "linker `link.exe` not found" 怎么办？
+
+A: 这是因为缺少 MSVC 工具链。有两种解决方案：
+
+**方案 1（推荐）**: 安装 Visual Studio Build Tools
+1. 访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/
+2. 下载并安装 "Build Tools for Visual Studio 2022"
+3. 在安装程序中选择 "Desktop development with C++" 工作负载
+4. 安装完成后重新编译
+
+**方案 2**: 使用 GNU 工具链
+1. 重新运行 `setup-windows.ps1` 脚本
+2. 当提示选择时，选择 "2" 使用 GNU 工具链
+3. 脚本会自动安装 MSYS2 和 MinGW-w64
+4. 使用命令编译：`cargo build --release --target x86_64-pc-windows-gnu`
 
 ### Q: 如何处理人机验证？
 
