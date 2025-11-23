@@ -5,7 +5,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct Email {
@@ -58,7 +58,7 @@ impl EmailHandler {
         timeout: Duration,
     ) -> Option<String> {
         let start = Instant::now();
-        
+
         loop {
             {
                 let codes = self.verification_codes.lock().unwrap();
@@ -88,7 +88,7 @@ impl EmailHandler {
 /// Extract verification code from email content
 fn extract_verification_code(subject: &str, body: &str) -> Option<String> {
     let text = format!("{} {}", subject, body);
-    
+
     // 常见的验证码模式
     let patterns = [
         regex::Regex::new(r"verification code[:\s]+([A-Z0-9]{6,8})").ok()?,
@@ -132,12 +132,15 @@ impl EmailService {
             return Ok(());
         }
 
-        info!("SMTP 服务器启动在 {}:{}", self.config.host, self.config.port);
-        
+        info!(
+            "SMTP 服务器启动在 {}:{}",
+            self.config.host, self.config.port
+        );
+
         // 注意：这里简化了 SMTP 服务器的实现
         // 实际部署时需要使用完整的 SMTP 服务器库
         // 或者使用外部的 SMTP 服务配合 IMAP/POP3 来接收邮件
-        
+
         Ok(())
     }
 

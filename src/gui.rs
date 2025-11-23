@@ -1,10 +1,10 @@
 //! GUI 模块 - 使用 egui 创建现代化的中国风界面
 //! GUI module - Modern Chinese-style interface using egui
 
-use eframe::egui;
-use egui::{Color32, FontId, RichText, Stroke, Vec2, Rounding};
-use std::sync::{Arc, Mutex};
 use crate::config::Config;
+use eframe::egui;
+use egui::{Color32, FontId, RichText, Rounding, Stroke, Vec2};
+use std::sync::{Arc, Mutex};
 
 /// 中国风配色方案
 /// Chinese-style color scheme
@@ -34,16 +34,16 @@ pub struct ChineseColorScheme {
 impl Default for ChineseColorScheme {
     fn default() -> Self {
         ChineseColorScheme {
-            primary: Color32::from_rgb(220, 38, 38),      // 中国红
-            secondary: Color32::from_rgb(34, 139, 34),    // 玉石绿
-            background: Color32::from_rgb(250, 248, 246), // 米白色
-            card_bg: Color32::from_rgb(255, 255, 255),    // 纯白
-            text_primary: Color32::from_rgb(31, 41, 55),  // 深灰
+            primary: Color32::from_rgb(220, 38, 38),          // 中国红
+            secondary: Color32::from_rgb(34, 139, 34),        // 玉石绿
+            background: Color32::from_rgb(250, 248, 246),     // 米白色
+            card_bg: Color32::from_rgb(255, 255, 255),        // 纯白
+            text_primary: Color32::from_rgb(31, 41, 55),      // 深灰
             text_secondary: Color32::from_rgb(107, 114, 128), // 中灰
-            success: Color32::from_rgb(16, 185, 129),     // 翡翠绿
-            warning: Color32::from_rgb(245, 158, 11),     // 琥珀色
-            error: Color32::from_rgb(239, 68, 68),        // 朱砂红
-            accent_gold: Color32::from_rgb(251, 191, 36), // 金色
+            success: Color32::from_rgb(16, 185, 129),         // 翡翠绿
+            warning: Color32::from_rgb(245, 158, 11),         // 琥珀色
+            error: Color32::from_rgb(239, 68, 68),            // 朱砂红
+            accent_gold: Color32::from_rgb(251, 191, 36),     // 金色
         }
     }
 }
@@ -77,7 +77,7 @@ impl AutoXAccountApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // 配置字体
         Self::configure_fonts(&cc.egui_ctx);
-        
+
         // 配置视觉样式
         Self::configure_style(&cc.egui_ctx);
 
@@ -109,7 +109,7 @@ impl AutoXAccountApp {
 
     fn configure_style(ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
-        
+
         // 设置圆角
         style.visuals.window_rounding = Rounding::same(12.0);
         style.visuals.menu_rounding = Rounding::same(8.0);
@@ -117,11 +117,11 @@ impl AutoXAccountApp {
         style.visuals.widgets.inactive.rounding = Rounding::same(8.0);
         style.visuals.widgets.hovered.rounding = Rounding::same(8.0);
         style.visuals.widgets.active.rounding = Rounding::same(8.0);
-        
+
         // 设置间距
         style.spacing.item_spacing = Vec2::new(12.0, 8.0);
         style.spacing.window_margin = egui::style::Margin::same(16.0);
-        
+
         ctx.set_style(style);
     }
 
@@ -132,9 +132,9 @@ impl AutoXAccountApp {
                 RichText::new("🐦 X 账号自动注册系统")
                     .size(28.0)
                     .color(self.colors.primary)
-                    .strong()
+                    .strong(),
             );
-            
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // 设置按钮
                 if ui.button(RichText::new("⚙ 设置").size(16.0)).clicked() {
@@ -144,7 +144,7 @@ impl AutoXAccountApp {
                 }
             });
         });
-        
+
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(8.0);
@@ -152,7 +152,7 @@ impl AutoXAccountApp {
 
     fn render_main_panel(&self, ui: &mut egui::Ui) {
         let state = self.state.lock().unwrap();
-        
+
         // 注册卡片
         egui::Frame::none()
             .fill(self.colors.card_bg)
@@ -164,64 +164,64 @@ impl AutoXAccountApp {
                     RichText::new("📧 注册新账号")
                         .size(20.0)
                         .color(self.colors.text_primary)
-                        .strong()
+                        .strong(),
                 );
-                
+
                 ui.add_space(12.0);
-                
+
                 // 邮箱输入框
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("邮箱地址:").size(16.0));
                     ui.add_space(8.0);
-                    
+
                     let email_edit = egui::TextEdit::singleline(&mut state.email.clone())
                         .desired_width(300.0)
                         .hint_text("请输入邮箱地址")
                         .font(FontId::proportional(16.0));
-                    
+
                     ui.add(email_edit);
                 });
-                
+
                 ui.add_space(16.0);
-                
+
                 // 进度条
                 if state.progress > 0.0 {
                     ui.add(
                         egui::ProgressBar::new(state.progress)
                             .text(format!("进度: {:.0}%", state.progress * 100.0))
                             .fill(self.colors.primary)
-                            .animate(true)
+                            .animate(true),
                     );
                     ui.add_space(8.0);
                 }
-                
+
                 // 状态显示
                 if !state.status.is_empty() {
                     ui.label(
                         RichText::new(&state.status)
                             .size(14.0)
-                            .color(self.colors.text_secondary)
+                            .color(self.colors.text_secondary),
                     );
                     ui.add_space(8.0);
                 }
-                
+
                 // 开始按钮
                 let button = egui::Button::new(
                     RichText::new("🚀 开始注册")
                         .size(18.0)
-                        .color(Color32::WHITE)
+                        .color(Color32::WHITE),
                 )
                 .fill(self.colors.primary)
                 .min_size(Vec2::new(150.0, 45.0))
                 .rounding(Rounding::same(8.0));
-                
+
                 if ui.add(button).clicked() {
                     // TODO: 触发注册流程
                 }
             });
-        
+
         ui.add_space(16.0);
-        
+
         // 日志面板
         egui::Frame::none()
             .fill(self.colors.card_bg)
@@ -233,11 +233,11 @@ impl AutoXAccountApp {
                     RichText::new("📝 运行日志")
                         .size(18.0)
                         .color(self.colors.text_primary)
-                        .strong()
+                        .strong(),
                 );
-                
+
                 ui.add_space(8.0);
-                
+
                 egui::ScrollArea::vertical()
                     .max_height(200.0)
                     .show(ui, |ui| {
@@ -246,7 +246,7 @@ impl AutoXAccountApp {
                                 RichText::new(log)
                                     .size(13.0)
                                     .color(self.colors.text_secondary)
-                                    .monospace()
+                                    .monospace(),
                             );
                         }
                     });
@@ -255,7 +255,7 @@ impl AutoXAccountApp {
 
     fn render_accounts_panel(&self, ui: &mut egui::Ui) {
         let state = self.state.lock().unwrap();
-        
+
         egui::Frame::none()
             .fill(self.colors.card_bg)
             .stroke(Stroke::new(1.0, Color32::from_rgb(229, 231, 235)))
@@ -266,17 +266,17 @@ impl AutoXAccountApp {
                     RichText::new("👥 已注册账号")
                         .size(20.0)
                         .color(self.colors.text_primary)
-                        .strong()
+                        .strong(),
                 );
-                
+
                 ui.add_space(12.0);
-                
+
                 if state.accounts.is_empty() {
                     ui.label(
                         RichText::new("暂无已注册账号")
                             .size(14.0)
                             .color(self.colors.text_secondary)
-                            .italics()
+                            .italics(),
                     );
                 } else {
                     egui::ScrollArea::vertical()
@@ -303,45 +303,45 @@ impl AutoXAccountApp {
                         RichText::new(&account.username)
                             .size(16.0)
                             .color(self.colors.text_primary)
-                            .strong()
+                            .strong(),
                     );
-                    
+
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let status_color = if account.status == "registered" {
                             self.colors.success
                         } else {
                             self.colors.warning
                         };
-                        
+
                         ui.label(
                             RichText::new(&account.status)
                                 .size(12.0)
-                                .color(status_color)
+                                .color(status_color),
                         );
                     });
                 });
-                
+
                 ui.label(
                     RichText::new(&account.email)
                         .size(13.0)
-                        .color(self.colors.text_secondary)
+                        .color(self.colors.text_secondary),
                 );
-                
+
                 ui.label(
                     RichText::new(&account.created_at)
                         .size(12.0)
-                        .color(self.colors.text_secondary)
+                        .color(self.colors.text_secondary),
                 );
             });
     }
 
     fn render_settings_window(&self, ctx: &egui::Context) {
         let mut state = self.state.lock().unwrap();
-        
+
         if !state.show_settings {
             return;
         }
-        
+
         egui::Window::new("⚙ 设置")
             .fixed_size(Vec2::new(500.0, 600.0))
             .collapsible(false)
@@ -352,10 +352,10 @@ impl AutoXAccountApp {
                         RichText::new("📧 SMTP 设置")
                             .size(18.0)
                             .color(self.colors.text_primary)
-                            .strong()
+                            .strong(),
                     );
                     ui.add_space(8.0);
-                    
+
                     ui.checkbox(&mut state.config.smtp.enable, "启用 SMTP 服务");
                     ui.horizontal(|ui| {
                         ui.label("主机:");
@@ -365,59 +365,71 @@ impl AutoXAccountApp {
                         ui.label("端口:");
                         ui.add(egui::DragValue::new(&mut state.config.smtp.port));
                     });
-                    
+
                     ui.add_space(16.0);
                     ui.separator();
                     ui.add_space(16.0);
-                    
+
                     // 代理设置
                     ui.label(
                         RichText::new("🌐 代理设置")
                             .size(18.0)
                             .color(self.colors.text_primary)
-                            .strong()
+                            .strong(),
                     );
                     ui.add_space(8.0);
-                    
+
                     // 代理模式选择
                     ui.horizontal(|ui| {
                         ui.label("代理模式:");
-                        
-                        ui.radio_value(&mut state.config.proxy.mode, config::ProxyMode::None, "不使用代理");
-                        ui.radio_value(&mut state.config.proxy.mode, config::ProxyMode::System, "系统代理");
-                        ui.radio_value(&mut state.config.proxy.mode, config::ProxyMode::Manual, "手动配置");
+
+                        ui.radio_value(
+                            &mut state.config.proxy.mode,
+                            config::ProxyMode::None,
+                            "不使用代理",
+                        );
+                        ui.radio_value(
+                            &mut state.config.proxy.mode,
+                            config::ProxyMode::System,
+                            "系统代理",
+                        );
+                        ui.radio_value(
+                            &mut state.config.proxy.mode,
+                            config::ProxyMode::Manual,
+                            "手动配置",
+                        );
                     });
-                    
+
                     ui.add_space(8.0);
-                    
+
                     // 根据模式显示不同的设置
                     match state.config.proxy.mode {
                         config::ProxyMode::None => {
                             ui.label(
                                 RichText::new("ℹ 不使用任何代理，直接连接")
                                     .size(14.0)
-                                    .color(self.colors.text_secondary)
+                                    .color(self.colors.text_secondary),
                             );
                         }
                         config::ProxyMode::System => {
                             ui.label(
                                 RichText::new("ℹ 自动检测并使用系统配置的代理")
                                     .size(14.0)
-                                    .color(self.colors.text_secondary)
+                                    .color(self.colors.text_secondary),
                             );
-                            
+
                             // 显示检测到的系统代理
                             if let Some(proxy_url) = state.config.get_proxy_url() {
                                 ui.label(
                                     RichText::new(format!("检测到: {}", proxy_url))
                                         .size(13.0)
-                                        .color(self.colors.success)
+                                        .color(self.colors.success),
                                 );
                             } else {
                                 ui.label(
                                     RichText::new("⚠ 未检测到系统代理设置")
                                         .size(13.0)
-                                        .color(self.colors.warning)
+                                        .color(self.colors.warning),
                                 );
                             }
                         }
@@ -425,17 +437,29 @@ impl AutoXAccountApp {
                             ui.label(
                                 RichText::new("ℹ 手动配置代理服务器")
                                     .size(14.0)
-                                    .color(self.colors.text_secondary)
+                                    .color(self.colors.text_secondary),
                             );
                             ui.add_space(8.0);
-                            
+
                             ui.horizontal(|ui| {
                                 ui.label("类型:");
-                                ui.radio_value(&mut state.config.proxy.proxy_type, "http".to_string(), "HTTP");
-                                ui.radio_value(&mut state.config.proxy.proxy_type, "https".to_string(), "HTTPS");
-                                ui.radio_value(&mut state.config.proxy.proxy_type, "socks5".to_string(), "SOCKS5");
+                                ui.radio_value(
+                                    &mut state.config.proxy.proxy_type,
+                                    "http".to_string(),
+                                    "HTTP",
+                                );
+                                ui.radio_value(
+                                    &mut state.config.proxy.proxy_type,
+                                    "https".to_string(),
+                                    "HTTPS",
+                                );
+                                ui.radio_value(
+                                    &mut state.config.proxy.proxy_type,
+                                    "socks5".to_string(),
+                                    "SOCKS5",
+                                );
                             });
-                            
+
                             ui.horizontal(|ui| {
                                 ui.label("主机:");
                                 ui.text_edit_singleline(&mut state.config.proxy.host);
@@ -444,13 +468,14 @@ impl AutoXAccountApp {
                                 ui.label("端口:");
                                 ui.add(egui::DragValue::new(&mut state.config.proxy.port));
                             });
-                            
+
                             ui.add_space(8.0);
                             ui.label(RichText::new("认证信息（可选）").size(14.0));
-                            
+
                             ui.horizontal(|ui| {
                                 ui.label("用户名:");
-                                let mut username = state.config.proxy.username.clone().unwrap_or_default();
+                                let mut username =
+                                    state.config.proxy.username.clone().unwrap_or_default();
                                 if ui.text_edit_singleline(&mut username).changed() {
                                     state.config.proxy.username = if username.is_empty() {
                                         None
@@ -461,8 +486,12 @@ impl AutoXAccountApp {
                             });
                             ui.horizontal(|ui| {
                                 ui.label("密码:");
-                                let mut password = state.config.proxy.password.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut password).password(true)).changed() {
+                                let mut password =
+                                    state.config.proxy.password.clone().unwrap_or_default();
+                                if ui
+                                    .add(egui::TextEdit::singleline(&mut password).password(true))
+                                    .changed()
+                                {
                                     state.config.proxy.password = if password.is_empty() {
                                         None
                                     } else {
@@ -472,29 +501,26 @@ impl AutoXAccountApp {
                             });
                         }
                     }
-                    
+
                     ui.add_space(16.0);
                     ui.separator();
                     ui.add_space(16.0);
-                    
+
                     // 浏览器设置
                     ui.label(
                         RichText::new("🌐 浏览器设置")
                             .size(18.0)
                             .color(self.colors.text_primary)
-                            .strong()
+                            .strong(),
                     );
                     ui.add_space(8.0);
-                    
+
                     ui.checkbox(&mut state.config.browser.headless, "无头模式");
-                    
+
                     ui.add_space(16.0);
-                    
+
                     // 保存按钮
-                    if ui.button(
-                        RichText::new("💾 保存设置")
-                            .size(16.0)
-                    ).clicked() {
+                    if ui.button(RichText::new("💾 保存设置").size(16.0)).clicked() {
                         // TODO: 保存配置
                         state.show_settings = false;
                     }
@@ -512,11 +538,11 @@ impl eframe::App for AutoXAccountApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(16.0);
-            
+
             self.render_header(ui);
-            
+
             ui.add_space(16.0);
-            
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // 左右布局
                 ui.horizontal_top(|ui| {
@@ -525,9 +551,9 @@ impl eframe::App for AutoXAccountApp {
                         ui.set_min_width(600.0);
                         self.render_main_panel(ui);
                     });
-                    
+
                     ui.add_space(16.0);
-                    
+
                     // 右侧账号列表
                     ui.vertical(|ui| {
                         ui.set_min_width(350.0);

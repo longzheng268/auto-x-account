@@ -1,10 +1,10 @@
 //! 邮箱服务提供商模块
 //! Email service provider module
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error};
 use tokio::time::{sleep, Duration};
+use tracing::{error, info, warn};
 
 /// 邮箱服务提供商类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,16 +46,16 @@ impl EmailProviderManager {
     /// Batch create temporary emails
     pub async fn batch_create_emails(&self, count: usize) -> Result<Vec<TempEmail>> {
         info!("开始批量创建 {} 个邮箱", count);
-        
+
         let mut emails = Vec::new();
         let mut failed_count = 0;
-        
+
         for i in 0..count {
             match self.create_temp_email().await {
                 Ok(email) => {
                     info!("成功创建邮箱 {}/{}: {}", i + 1, count, email.address);
                     emails.push(email);
-                    
+
                     // 添加延迟避免请求过快
                     if i < count - 1 {
                         sleep(Duration::from_millis(500)).await;
@@ -64,25 +64,25 @@ impl EmailProviderManager {
                 Err(e) => {
                     error!("创建邮箱 {}/{} 失败: {}", i + 1, count, e);
                     failed_count += 1;
-                    
+
                     // 如果连续失败太多次，停止批量创建
                     if failed_count > 5 {
                         warn!("连续失败次数过多，停止批量创建");
                         break;
                     }
-                    
+
                     // 失败后等待更长时间再重试
                     sleep(Duration::from_secs(2)).await;
                 }
             }
         }
-        
+
         info!(
             "批量创建邮箱完成: 成功 {}, 失败 {}",
             emails.len(),
             failed_count
         );
-        
+
         Ok(emails)
     }
 
@@ -94,11 +94,11 @@ impl EmailProviderManager {
         verify: bool,
     ) -> Result<Vec<TempEmail>> {
         let emails = self.batch_create_emails(count).await?;
-        
+
         if verify {
             info!("验证邮箱可用性...");
             let mut verified_emails = Vec::new();
-            
+
             for email in emails {
                 if self.verify_email(&email).await {
                     verified_emails.push(email);
@@ -106,7 +106,7 @@ impl EmailProviderManager {
                     warn!("邮箱验证失败: {}", email.address);
                 }
             }
-            
+
             info!("验证完成: {}/{} 邮箱可用", verified_emails.len(), count);
             Ok(verified_emails)
         } else {
@@ -121,9 +121,7 @@ impl EmailProviderManager {
                 // 尝试获取邮件列表来验证
                 self.check_mail_tm_emails(email).await.is_ok()
             }
-            EmailProvider::GuerrillaMail => {
-                self.check_guerrilla_emails(email).await.is_ok()
-            }
+            EmailProvider::GuerrillaMail => self.check_guerrilla_emails(email).await.is_ok(),
             _ => true, // 自建服务器默认认为可用
         }
     }
@@ -135,10 +133,7 @@ impl EmailProviderManager {
             EmailProvider::GuerrillaMail => self.create_guerrilla_account().await,
             EmailProvider::SelfHosted => {
                 // 使用自己的域名生成随机邮箱
-                let random_name = format!(
-                    "user_{}",
-                    chrono::Utc::now().timestamp_millis()
-                );
+                let random_name = format!("user_{}", chrono::Utc::now().timestamp_millis());
                 Ok(TempEmail {
                     address: format!("{}@{}", random_name, self.config.domain),
                     password: None,
@@ -212,13 +207,13 @@ impl EmailProviderManager {
         use std::fs;
 
         let content = fs::read_to_string(filename)?;
-        
+
         // 尝试 JSON 格式
         if let Ok(emails) = serde_json::from_str::<Vec<TempEmail>>(&content) {
             info!("从文件导入了 {} 个邮箱 (JSON 格式)", emails.len());
             return Ok(emails);
         }
-        
+
         // 尝试纯文本格式（每行一个邮箱）
         let mut emails = Vec::new();
         for line in content.lines() {
@@ -232,7 +227,7 @@ impl EmailProviderManager {
                 });
             }
         }
-        
+
         info!("从文件导入了 {} 个邮箱 (文本格式)", emails.len());
         Ok(emails)
     }
@@ -244,10 +239,7 @@ impl EmailProviderManager {
         let client = reqwest::Client::new();
 
         // 获取可用域名
-        let domains_response = client
-            .get("https://api.mail.tm/domains")
-            .send()
-            .await?;
+        let domains_response = client.get("https://api.mail.tm/domains").send().await?;
 
         let domains: serde_json::Value = domains_response.json().await?;
         let domain = domains["hydra:member"][0]["domain"]
@@ -317,9 +309,7 @@ impl EmailProviderManager {
             .context("无法获取 Guerrilla Mail 地址")?
             .to_string();
 
-        let sid = data["sid_token"]
-            .as_str()
-            .map(|s| s.to_string());
+        let sid = data["sid_token"].as_str().map(|s| s.to_string());
 
         info!("Guerrilla Mail 邮箱创建成功: {}", address);
 
@@ -344,10 +334,7 @@ impl EmailProviderManager {
     }
 
     async fn check_mail_tm_emails(&self, temp_email: &TempEmail) -> Result<Vec<EmailMessage>> {
-        let token = temp_email
-            .token
-            .as_ref()
-            .context("缺少 mail.tm token")?;
+        let token = temp_email.token.as_ref().context("缺少 mail.tm token")?;
 
         let client = reqwest::Client::new();
         let response = client
@@ -395,9 +382,7 @@ impl EmailProviderManager {
             .await?;
 
         let data: serde_json::Value = response.json().await?;
-        let emails = data["list"]
-            .as_array()
-            .context("无法解析邮件列表")?;
+        let emails = data["list"].as_array().context("无法解析邮件列表")?;
 
         let mut result = Vec::new();
         for email in emails {
