@@ -428,12 +428,17 @@ impl AutoXAccountApp {
                         ui.radio_value(
                             &mut state.config.captcha.mode,
                             crate::config::CaptchaMode::Auto,
-                            "自动 (推荐)",
+                            "自动 (免费)",
                         );
                         ui.radio_value(
                             &mut state.config.captcha.mode,
                             crate::config::CaptchaMode::Manual,
                             "手动",
+                        );
+                        ui.radio_value(
+                            &mut state.config.captcha.mode,
+                            crate::config::CaptchaMode::ThirdParty,
+                            "第三方付费",
                         );
                         ui.radio_value(
                             &mut state.config.captcha.mode,
@@ -450,13 +455,37 @@ impl AutoXAccountApp {
                         crate::config::CaptchaMode::Auto => {
                             ui.add_space(8.0);
                             ui.label(
-                                RichText::new("ℹ 使用 Selenium + 第三方验证服务自动解决 ReCAPTCHA")
+                                RichText::new("✅ 使用自研算法自动解决 ReCAPTCHA (免费)")
                                     .size(13.0)
+                                    .color(self.colors.success),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(
+                                RichText::new("• 音频挑战 + 免费语音识别")
+                                    .size(12.0)
                                     .color(self.colors.text_secondary),
+                            );
+                            ui.label(
+                                RichText::new("• 智能行为模拟")
+                                    .size(12.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                            ui.label(
+                                RichText::new("• 自动重试机制")
+                                    .size(12.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                        }
+                        crate::config::CaptchaMode::ThirdParty => {
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("⚠️ 第三方服务需要付费 ($1-3/1000次)")
+                                    .size(13.0)
+                                    .color(self.colors.warning),
                             );
                             ui.add_space(8.0);
 
-                            ui.label(RichText::new("第三方服务 API Keys (至少配置一个):").size(14.0));
+                            ui.label(RichText::new("API Keys (至少配置一个):").size(14.0));
                             
                             ui.horizontal(|ui| {
                                 ui.label("2Captcha:");

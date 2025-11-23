@@ -89,12 +89,15 @@ pub struct CaptchaConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptchaMode {
-    /// 自动解决 - 使用第三方服务（默认，推荐）
-    /// Automatic - Use third-party services (default, recommended)
+    /// 自动解决 - 使用自研算法（默认，免费）
+    /// Automatic - Use custom algorithms (default, free)
     Auto,
     /// 手动模式 - 等待用户手动完成
     /// Manual - Wait for user to complete manually
     Manual,
+    /// 第三方服务 - 使用付费服务（2Captcha等）
+    /// Third-party - Use paid services (2Captcha, etc.)
+    ThirdParty,
     /// LLM API - 使用大模型 API（测试功能）
     /// LLM API - Use LLM API (test feature)
     #[serde(rename = "llm")]

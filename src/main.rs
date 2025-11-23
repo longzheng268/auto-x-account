@@ -8,6 +8,7 @@ mod batch;
 mod browser_detector;
 mod captcha;
 mod config;
+mod custom_captcha_solver;
 mod email;
 mod email_provider;
 mod gui;
