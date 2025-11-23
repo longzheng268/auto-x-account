@@ -90,12 +90,25 @@ impl AutoXAccountApp {
     fn configure_fonts(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
 
-        // 添加小米字体 MiSans
-        // 注意：需要先下载 MiSans 字体文件到 assets/fonts/ 目录
-        // fonts.font_data.insert(
-        //     "MiSans".to_owned(),
-        //     egui::FontData::from_static(include_bytes!("../assets/fonts/MiSans-Regular.ttf")),
-        // );
+        // 尝试嵌入 MiSans 字体，如果不存在则使用 fallback 字体
+        // Try to embed MiSans font, fallback to bundled font if not available
+        #[cfg(font_misans)]
+        {
+            fonts.font_data.insert(
+                "MiSans".to_owned(),
+                egui::FontData::from_static(include_bytes!("../fonts/MiSans/ttf/MiSans-Regular.ttf")),
+            );
+        }
+        
+        #[cfg(not(font_misans))]
+        {
+            // 使用内置的 fallback 字体 (DejaVu Sans)
+            // Use bundled fallback font (DejaVu Sans)
+            fonts.font_data.insert(
+                "MiSans".to_owned(),
+                egui::FontData::from_static(include_bytes!("../fonts/fallback.ttf")),
+            );
+        }
 
         // 配置字体家族优先级
         fonts

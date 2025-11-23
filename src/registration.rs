@@ -47,6 +47,80 @@ impl XRegistration {
         }
     }
 
+    /// 获取 Chrome/Chromium 可执行文件路径
+    /// Get Chrome/Chromium executable path
+    /// 
+    /// 优先级 / Priority:
+    /// 1. 配置文件指定的路径 / Config specified path
+    /// 2. 打包在程序旁边的 chromium 目录 / Bundled chromium directory
+    /// 3. 系统安装的 Chromium/Chrome / System installed Chromium/Chrome
+    fn get_chrome_executable_path(&self) -> Result<Option<PathBuf>> {
+        // 1. 检查配置文件中指定的路径
+        if let Some(config_path) = &self.config.browser.chrome_path {
+            let path = PathBuf::from(config_path);
+            if path.exists() {
+                return Ok(Some(path));
+            } else {
+                warn!("配置的 Chrome 路径不存在: {}", config_path);
+            }
+        }
+
+        // 2. 检查打包在程序旁边的 chromium 目录
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                // 尝试不同的可能路径
+                let bundled_paths = vec![
+                    exe_dir.join("chromium").join("chrome"),           // Linux
+                    exe_dir.join("chromium").join("chrome.exe"),       // Windows
+                    exe_dir.join("chromium").join("Chromium.app").join("Contents").join("MacOS").join("Chromium"), // macOS
+                    exe_dir.join("chrome-linux").join("chrome"),       // Linux (另一种命名)
+                    exe_dir.join("chrome-win").join("chrome.exe"),     // Windows (另一种命名)
+                ];
+
+                for path in bundled_paths {
+                    if path.exists() {
+                        info!("找到打包的 Chromium: {}", path.display());
+                        return Ok(Some(path));
+                    }
+                }
+            }
+        }
+
+        // 3. 检查系统安装的 Chromium/Chrome
+        let system_paths = if cfg!(target_os = "windows") {
+            vec![
+                PathBuf::from(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+                PathBuf::from(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+                PathBuf::from(r"C:\Program Files\Chromium\Application\chrome.exe"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                PathBuf::from("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            ]
+        } else {
+            // Linux
+            vec![
+                PathBuf::from("/usr/bin/chromium"),
+                PathBuf::from("/usr/bin/chromium-browser"),
+                PathBuf::from("/usr/bin/google-chrome"),
+                PathBuf::from("/usr/bin/google-chrome-stable"),
+                PathBuf::from("/snap/bin/chromium"),
+            ]
+        };
+
+        for path in system_paths {
+            if path.exists() {
+                info!("使用系统安装的浏览器: {}", path.display());
+                return Ok(Some(path));
+            }
+        }
+
+        // 如果都没找到，返回 None，让 chromiumoxide 使用默认查找逻辑
+        warn!("未找到 Chrome/Chromium 可执行文件，将使用默认查找方式");
+        Ok(None)
+    }
+
     /// 生成账号信息
     /// Generate account information
     fn generate_account_info(&self, email: String) -> AccountInfo {
@@ -130,6 +204,14 @@ impl XRegistration {
 
         if !self.config.browser.headless {
             builder = builder.with_head();
+        }
+
+        // 设置 Chrome/Chromium 可执行文件路径
+        // Set Chrome/Chromium executable path
+        let chrome_path = self.get_chrome_executable_path()?;
+        if let Some(path) = chrome_path {
+            info!("使用 Chromium 路径: {}", path.display());
+            builder = builder.chrome_executable(&path);
         }
 
         // 配置代理

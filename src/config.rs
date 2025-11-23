@@ -60,6 +60,10 @@ pub struct BrowserConfig {
     pub timeout: u64,
     pub viewport: ViewportConfig,
     pub user_data_dir: String,
+    /// Chrome/Chromium 可执行文件路径（可选，为空则使用系统安装的）
+    /// Path to Chrome/Chromium executable (optional, uses system installation if empty)
+    #[serde(default)]
+    pub chrome_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -348,6 +352,7 @@ impl Default for Config {
                     height: 720,
                 },
                 user_data_dir: "browser_data".to_string(),
+                chrome_path: None,
             },
             x_account: XAccountConfig {
                 base_url: "https://twitter.com/i/flow/signup".to_string(),
