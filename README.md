@@ -467,12 +467,16 @@ sudo nano /etc/maddy/maddy.conf
 ```json
 {
   "smtp": {
-    "host": "127.0.0.1",  # 或你的服务器 IP
+    "host": "127.0.0.1",
     "port": 25,
     "domain": "your-domain.com",
     "enable": true
   }
 }
+```
+注释说明：
+- `host`: 邮件服务器地址，本地为 `127.0.0.1`，远程服务器填写服务器 IP
+- `port`: SMTP 端口，默认 25
 ```
 
 **4. 测试邮件接收：**
@@ -640,7 +644,7 @@ rustup target add x86_64-pc-windows-gnu
 # 3. 打开新的 PowerShell 窗口
 
 # 4. 进入项目目录重新编译
-cd 你的项目路径
+cd C:\path\to\your-project
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 

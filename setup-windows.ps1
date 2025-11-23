@@ -15,9 +15,10 @@ if (-not $isAdmin) {
     Write-Host ""
 }
 
-# 全局变量：是否已有完整环境
+# 全局变量
 $script:hasCompleteEnvironment = $false
 $script:needSetup = $false
+$script:projectName = "auto-x-account"  # 项目名称，从 Cargo.toml 读取更好，但为简化先硬编码
 
 # ============================================
 # 辅助函数 / Helper Functions
@@ -243,15 +244,32 @@ function Install-RustToolchain {
             # 添加 GNU 目标
             Write-Host "  添加 x86_64-pc-windows-gnu 目标..." -ForegroundColor Gray
             rustup target add x86_64-pc-windows-gnu 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "警告: 添加 GNU 目标失败" -ForegroundColor Yellow
+                Write-Host "Warning: Failed to add GNU target" -ForegroundColor Yellow
+            }
             
             # 关键：设置默认主机为 GNU，避免 cargo 反复同步 MSVC 工具链
             Write-Host "  设置默认主机为 x86_64-pc-windows-gnu..." -ForegroundColor Gray
             rustup set default-host x86_64-pc-windows-gnu 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "警告: 设置默认主机失败" -ForegroundColor Yellow
+                Write-Host "Warning: Failed to set default host" -ForegroundColor Yellow
+            }
             
             # 安装并设置 GNU 工具链为默认
             Write-Host "  安装并设置 GNU 工具链为默认..." -ForegroundColor Gray
             rustup toolchain install stable-x86_64-pc-windows-gnu 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "警告: 安装 GNU 工具链失败" -ForegroundColor Yellow
+                Write-Host "Warning: Failed to install GNU toolchain" -ForegroundColor Yellow
+            }
+            
             rustup default stable-x86_64-pc-windows-gnu 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "警告: 设置默认工具链失败" -ForegroundColor Yellow
+                Write-Host "Warning: Failed to set default toolchain" -ForegroundColor Yellow
+            }
             
             Write-Host "GNU 工具链配置完成!" -ForegroundColor Green
             Write-Host "GNU toolchain configured!" -ForegroundColor Green
@@ -273,7 +291,13 @@ function Configure-MinGWPath {
         return $false
     }
     
-    $msys2Root = scoop prefix msys2 2>$null
+    $msys2Root = $null
+    try {
+        $msys2Root = scoop prefix msys2 -ErrorAction SilentlyContinue 2>$null
+    } catch {
+        # 忽略错误，继续检查
+    }
+    
     if ($msys2Root -and (Test-Path "$msys2Root\mingw64\bin")) {
         $mingwBin = "$msys2Root\mingw64\bin"
         
@@ -341,7 +365,7 @@ if ($envCheck.HasEnvironment) {
                 Write-Host "Build successful!" -ForegroundColor Green
                 Write-Host ""
                 
-                $exePath = ".\target\release\auto-x-account.exe"
+                $exePath = ".\target\release\$script:projectName.exe"
                 if (Test-Path $exePath) {
                     Write-Host "是否立即运行程序？(Y/N)" -ForegroundColor Cyan
                     Write-Host "Run the program now? (Y/N)" -ForegroundColor Cyan
