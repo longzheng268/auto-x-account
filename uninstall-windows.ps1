@@ -106,13 +106,33 @@ if (Get-Command scoop -ErrorAction SilentlyContinue) {
     $uninstallScoop = Read-Host "是否卸载通过 Scoop 安装的工具？(Y/N) / Uninstall Scoop packages? (Y/N)"
     
     if ($uninstallScoop -eq "Y" -or $uninstallScoop -eq "y") {
-        $packages = @("rustup", "git", "chromium", "googlechrome")
+        # 包含 MSYS2（用于 GNU 工具链）
+        $packages = @("rustup", "git", "chromium", "googlechrome", "msys2")
         
         foreach ($pkg in $packages) {
             if (scoop list | Select-String -Pattern $pkg -Quiet) {
                 Write-Host "  正在卸载: $pkg" -ForegroundColor Yellow
                 scoop uninstall $pkg
                 Write-Host "  ✓ 已卸载: $pkg" -ForegroundColor Green
+            }
+        }
+        
+        # 清理 MSYS2 目录（如果存在）
+        Write-Host "  正在清理 MSYS2..." -ForegroundColor Yellow
+        $msys2Dirs = @(
+            "$env:USERPROFILE\scoop\apps\msys2",
+            "$env:USERPROFILE\AppData\Local\msys2"
+        )
+        
+        foreach ($dir in $msys2Dirs) {
+            if (Test-Path $dir) {
+                try {
+                    Remove-Item -Recurse -Force $dir -ErrorAction Stop
+                    Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
+                } catch {
+                    Write-Host "  ⚠ 无法删除: $dir - $_" -ForegroundColor Yellow
+                    Write-Host "    提示：请手动删除或在没有程序使用时重试" -ForegroundColor Gray
+                }
             }
         }
         
