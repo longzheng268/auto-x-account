@@ -121,10 +121,15 @@ pub fn cleanup_old_logs(days_to_keep: u32) -> Result<()> {
                 if ext == "log" {
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         if let Ok(modified) = metadata.modified() {
-                            let modified_time: chrono::DateTime<chrono::Local> = modified.into();
-                            if modified_time < cutoff_time {
-                                tracing::info!("删除旧日志文件 / Removing old log file: {}", path.display());
-                                let _ = std::fs::remove_file(&path);
+                            // Safely convert SystemTime to DateTime
+                            match chrono::DateTime::<chrono::Local>::from(modified).partial_cmp(&cutoff_time) {
+                                Some(std::cmp::Ordering::Less) => {
+                                    tracing::info!("删除旧日志文件 / Removing old log file: {}", path.display());
+                                    let _ = std::fs::remove_file(&path);
+                                }
+                                _ => {
+                                    // File is newer or comparison failed, keep it
+                                }
                             }
                         }
                     }

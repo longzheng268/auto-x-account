@@ -123,8 +123,14 @@ impl BatchRegistrationManager {
     async fn persist_tasks(&self) -> Result<()> {
         let dir = Self::ensure_cache_dir()?;
         let path = dir.join("tasks.json");
-        let tasks = self.tasks.lock().await;
-        let json = serde_json::to_string_pretty(&*tasks)?;
+        
+        // Clone data and release lock before serialization to avoid blocking
+        let tasks_clone = {
+            let tasks = self.tasks.lock().await;
+            tasks.clone()
+        };
+        
+        let json = serde_json::to_string_pretty(&tasks_clone)?;
         std::fs::write(path, json)?;
         Ok(())
     }
@@ -134,8 +140,14 @@ impl BatchRegistrationManager {
     async fn persist_accounts(&self) -> Result<()> {
         let dir = Self::ensure_cache_dir()?;
         let path = dir.join("accounts.json");
-        let accounts = self.accounts.lock().await;
-        let json = serde_json::to_string_pretty(&*accounts)?;
+        
+        // Clone data and release lock before serialization to avoid blocking
+        let accounts_clone = {
+            let accounts = self.accounts.lock().await;
+            accounts.clone()
+        };
+        
+        let json = serde_json::to_string_pretty(&accounts_clone)?;
         std::fs::write(path, json)?;
         Ok(())
     }
@@ -150,9 +162,10 @@ impl BatchRegistrationManager {
         if tasks_path.exists() {
             let data = std::fs::read_to_string(tasks_path)?;
             let list: Vec<BatchTask> = serde_json::from_str(&data)?;
+            let count = list.len();
             let mut tasks = self.tasks.lock().await;
             *tasks = list;
-            info!("已从缓存加载 {} 个任务 / Loaded {} tasks from cache", tasks.len(), tasks.len());
+            info!("已从缓存加载 {} 个任务 / Loaded {} tasks from cache", count, count);
         }
 
         // 加载账号数据
@@ -160,9 +173,10 @@ impl BatchRegistrationManager {
         if accounts_path.exists() {
             let data = std::fs::read_to_string(accounts_path)?;
             let list: Vec<AccountInfo> = serde_json::from_str(&data)?;
+            let count = list.len();
             let mut accounts = self.accounts.lock().await;
             *accounts = list;
-            info!("已从缓存加载 {} 个账号 / Loaded {} accounts from cache", accounts.len(), accounts.len());
+            info!("已从缓存加载 {} 个账号 / Loaded {} accounts from cache", count, count);
         }
 
         Ok(())
