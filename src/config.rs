@@ -862,6 +862,7 @@ impl Default for EmailProviderSettings {
             custom_password: None,
             custom_api_key: None,
             custom_api_endpoint: None,
+            plus_mode: EmailPlusMode::default(),
         }
     }
 }
