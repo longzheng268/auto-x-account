@@ -414,6 +414,9 @@ if ($envCheck.HasEnvironment) {
     }
 } else {
     # 没有完整环境，需要安装
+    Write-Host "编译环境不完整，将进行配置..." -ForegroundColor Yellow
+    Write-Host "Build environment incomplete, will configure..." -ForegroundColor Yellow
+    Write-Host ""
     $script:needSetup = $true
 }
 
