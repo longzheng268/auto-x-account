@@ -106,30 +106,73 @@ cargo build --release
 # Windows: .\target\release\auto-x-account.exe
 ```
 
-**Windows GNU 工具链编译说明：**
+**Windows GNU 工具链编译详细步骤：**
 
-使用 GNU 工具链编译可以获得完全静态链接的二进制文件，无需依赖 Visual C++ 运行时库。
+使用 GNU 工具链编译可以获得完全静态链接的二进制文件，无需依赖 Visual C++ 运行时库，适合绿色便携部署。
 
-1. **安装 MinGW-w64（通过 Chocolatey）：**
+**方法 1：通过 MSYS2（推荐，集成度更好）**
+
+1. **安装 MSYS2：**
+   ```powershell
+   # 通过 Scoop 安装
+   scoop install msys2
+   
+   # 或从官网下载: https://www.msys2.org/
+   ```
+
+2. **安装 MinGW-w64 工具链：**
+   ```powershell
+   # 获取 MSYS2 安装路径
+   $msys2Path = scoop prefix msys2  # 或手动设置，如 C:\msys64
+   
+   # 运行 MSYS2 并安装工具链
+   & "$msys2Path\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-x86_64-toolchain"
+   ```
+
+3. **配置环境变量（将 MinGW bin 目录加入 PATH）：**
+   ```powershell
+   # 临时添加（当前 PowerShell 会话）
+   $env:Path = "$msys2Path\mingw64\bin;$env:Path"
+   
+   # 或永久添加到用户环境变量（推荐）
+   [Environment]::SetEnvironmentVariable("Path", "$msys2Path\mingw64\bin;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
+   ```
+
+4. **配置 Rust 工具链：**
+   ```powershell
+   # 添加 GNU 目标
+   rustup target add x86_64-pc-windows-gnu
+   
+   # 重要：设置默认主机和工具链，避免 MSVC 工具链反复同步
+   rustup set default-host x86_64-pc-windows-gnu
+   rustup default stable-x86_64-pc-windows-gnu
+   
+   # 验证配置
+   rustup show
+   # 应该显示: active toolchain: stable-x86_64-pc-windows-gnu
+   ```
+
+5. **编译项目：**
+   ```powershell
+   # 打开新的 PowerShell 窗口以应用环境变量
+   cargo build --release
+   # 生成的可执行文件: .\target\release\auto-x-account.exe
+   ```
+
+**方法 2：通过 Chocolatey（更简单）**
+
+1. **安装 MinGW：**
    ```powershell
    choco install mingw -y
    ```
 
-2. **或通过 MSYS2 安装：**
-   ```bash
-   pacman -S mingw-w64-x86_64-toolchain
-   ```
+2. **配置 Rust（同上步骤 4-5）**
 
-3. **配置 Rust 使用 GNU 工具链：**
-   ```bash
-   rustup target add x86_64-pc-windows-gnu
-   rustup default stable-x86_64-pc-windows-gnu
-   ```
+**重要提示：避免 cargo 反复同步 MSVC 工具链**
 
-4. **编译项目：**
-   ```bash
-   cargo build --release --target x86_64-pc-windows-gnu
-   ```
+如果你遇到运行 `cargo build` 时一直显示 "syncing channel updates for 'stable-x86_64-pc-windows-msvc'"，这是因为：
+- 你的默认工具链是 MSVC，但使用了 `--target x86_64-pc-windows-gnu`
+- 解决方法：按照上述步骤 4，使用 `rustup default stable-x86_64-pc-windows-gnu` 切换默认工具链
 
 项目已经配置了 `.cargo/config.toml` 文件，会自动使用静态链接配置。
 
@@ -282,12 +325,187 @@ rm -rf browser_data screenshots logs accounts.json config.json
 
 ### 邮箱服务提供商
 
-支持以下邮箱服务：
+本系统支持以下邮箱服务：
 
-1. **mail.tm** - 免费临时邮箱 API（推荐）
+1. **mail.tm** - 免费临时邮箱 API（推荐用于测试）
 2. **Guerrilla Mail** - 老牌临时邮箱服务
-3. **自建 SMTP** - 完全自主控制（最稳定）
+3. **自建 SMTP** - 完全自主控制（推荐用于生产）
 4. **自定义** - 使用自己的邮箱服务
+
+### 推荐的自建邮箱系统
+
+根据本系统的使用场景和需求，我们推荐以下邮箱系统：
+
+#### 🥇 首选：Maddy Mail Server
+
+**推荐理由：**
+- ✅ **开箱即用**：单一二进制文件，配置简单
+- ✅ **轻量级**：资源占用少，适合批量注册场景
+- ✅ **现代化**：使用 Go 语言开发，性能优秀
+- ✅ **开源免费**：MIT 许可证，无商业限制
+- ✅ **SMTP/IMAP 完整支持**：满足自动化接收验证码需求
+
+**适用场景：**
+- 中小规模批量注册（每天 100-1000 个账号）
+- 需要快速部署和维护
+- 资源受限的环境（如个人服务器、VPS）
+
+**Docker 部署示例：**
+```bash
+# 1. 拉取镜像
+docker pull foxcpp/maddy:latest
+
+# 2. 创建配置目录
+mkdir -p /opt/maddy/data
+
+# 3. 运行容器
+docker run -d \
+  --name maddy \
+  -p 25:25 \
+  -p 587:587 \
+  -p 993:993 \
+  -v /opt/maddy/data:/data \
+  foxcpp/maddy:latest
+
+# 4. 配置与本系统集成
+# 在 config.json 中配置：
+# "smtp": {
+#   "host": "your-server-ip",
+#   "port": 25,
+#   "domain": "your-domain.com",
+#   "enable": true
+# }
+```
+
+#### 🥈 备选：MailServer (Docker Mailserver)
+
+**推荐理由：**
+- ✅ **功能完整**：包含 Postfix + Dovecot + SpamAssassin
+- ✅ **Docker 友好**：容器化部署，易于管理
+- ✅ **社区活跃**：文档完善，问题容易解决
+- ✅ **适合生产**：稳定可靠，支持大规模部署
+
+**适用场景：**
+- 大规模批量注册（每天 1000+ 个账号）
+- 需要完整的邮件服务功能
+- 有一定运维经验的团队
+
+**Docker 部署示例：**
+```bash
+# 使用 docker-mailserver
+docker run -d \
+  --name mailserver \
+  -p 25:25 -p 143:143 -p 587:587 -p 993:993 \
+  -v /opt/mailserver/data:/var/mail \
+  -v /opt/mailserver/config:/tmp/docker-mailserver \
+  -e ENABLE_SPAMASSASSIN=0 \
+  -e ENABLE_CLAMAV=0 \
+  docker.io/mailserver/docker-mailserver:latest
+```
+
+#### 🥉 第三选择：BillionMail（适合企业级）
+
+**推荐理由：**
+- ✅ **营销功能**：内置电子邮件营销功能
+- ✅ **开发者友好**：API 支持完善
+- ✅ **自托管**：完全控制数据和隐私
+
+**适用场景：**
+- 需要邮件营销功能
+- 企业级部署需求
+- 对 API 集成有更高要求
+
+#### ❌ 不推荐的方案
+
+**RoundCube**：这是一个邮件客户端（Webmail），不是邮件服务器，无法满足本系统需求。
+
+**Axigen**：虽然功能强大，但配置复杂，对于批量注册场景过于重量级。
+
+### 邮箱系统对比表
+
+| 特性 | Maddy | MailServer | BillionMail | Axigen |
+|------|-------|-----------|-------------|---------|
+| **部署难度** | ⭐⭐⭐⭐⭐ 极易 | ⭐⭐⭐⭐ 容易 | ⭐⭐⭐ 中等 | ⭐⭐ 复杂 |
+| **资源占用** | ⭐⭐⭐⭐⭐ 极低 | ⭐⭐⭐ 中等 | ⭐⭐⭐ 中等 | ⭐⭐ 较高 |
+| **批量处理** | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 |
+| **文档质量** | ⭐⭐⭐⭐ 良好 | ⭐⭐⭐⭐⭐ 优秀 | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐ 良好 |
+| **社区活跃度** | ⭐⭐⭐⭐ 活跃 | ⭐⭐⭐⭐⭐ 很活跃 | ⭐⭐⭐ 一般 | ⭐⭐⭐ 一般 |
+| **适合规模** | 小-中 | 中-大 | 中-企业 | 企业 |
+| **开源程度** | 完全开源 | 完全开源 | 开源 | 部分开源 |
+
+### 快速开始指南（使用 Maddy）
+
+**1. 安装 Maddy：**
+```bash
+# Docker 方式（推荐）
+docker run -d --name maddy \
+  -p 25:25 -p 587:587 -p 993:993 \
+  -v /opt/maddy:/data \
+  foxcpp/maddy:latest
+
+# 或使用包管理器
+# Ubuntu/Debian
+apt install maddy
+
+# Arch Linux
+pacman -S maddy
+```
+
+**2. 配置 Maddy：**
+```bash
+# 编辑配置文件
+sudo nano /etc/maddy/maddy.conf
+
+# 基本配置示例：
+# hostname your-domain.com
+# tls off  # 本地测试可关闭 TLS
+```
+
+**3. 配置本系统：**
+
+在 `config.json` 中配置：
+```json
+{
+  "smtp": {
+    "host": "127.0.0.1",
+    "port": 25,
+    "domain": "your-domain.com",
+    "enable": true
+  }
+}
+```
+
+**注释说明：**
+- `host`: 邮件服务器地址，本地为 `127.0.0.1`，远程服务器填写服务器 IP
+- `port`: SMTP 端口，默认 25
+
+**4. 测试邮件接收：**
+```bash
+# 运行本系统
+./auto-x-account register --email test@your-domain.com
+```
+
+### 生产环境建议
+
+**安全配置：**
+1. ✅ 启用 TLS/SSL 加密
+2. ✅ 配置 SPF、DKIM、DMARC 记录
+3. ✅ 使用独立域名（避免主域名被封）
+4. ✅ 限制连接速率，避免被识别为垃圾邮件
+5. ✅ 定期清理旧邮件，节省存储空间
+
+**监控和维护：**
+- 监控邮件队列长度
+- 检查邮件服务器日志
+- 定期更新系统和软件
+- 备份邮件数据
+
+**推荐的域名策略：**
+- 使用二级域名：`mail.yourdomain.com`
+- 准备多个备用域名
+- 避免使用主业务域名
+
+
 
 ## 🎨 界面预览
 
@@ -332,9 +550,31 @@ cargo fmt --check
 
 ## 📝 常见问题
 
+### Q: Windows 上应该选择 MSVC 还是 GNU 工具链？
+
+A: **推荐根据使用场景选择：**
+
+| 特性 | MSVC (推荐) | GNU (MinGW-w64) |
+|-----|------------|----------------|
+| **兼容性** | ⭐⭐⭐⭐⭐ 最佳 | ⭐⭐⭐⭐ 良好 |
+| **安装难度** | 需要 Visual Studio Build Tools（约 6GB） | 仅需 MSYS2/MinGW（约 1GB） |
+| **运行时依赖** | 需要 VC++ Runtime（通常已预装） | ✅ 无需任何运行时库 |
+| **文件大小** | 较大 | 较小（静态链接） |
+| **部署便携性** | 需要目标机器有 VC++ Runtime | ✅ 完全独立，绿色便携 |
+| **调试支持** | ⭐⭐⭐⭐⭐ Visual Studio 调试器 | ⭐⭐⭐ GDB 调试器 |
+| **编译速度** | 快 | 较快 |
+| **系统集成** | ⭐⭐⭐⭐⭐ 原生 Windows API | ⭐⭐⭐⭐ 兼容层 |
+| **官方推荐** | ✅ Rust 官方推荐 | 备选方案 |
+
+**选择建议：**
+- 🎯 **日常开发、追求稳定性** → 选择 **MSVC**
+- 🎯 **绿色部署、独立运行** → 选择 **GNU**
+- 🎯 **磁盘空间受限** → 选择 **GNU**（安装包小）
+- 🎯 **需要最佳调试体验** → 选择 **MSVC**
+
 ### Q: Windows 编译时提示 "linker `link.exe` not found" 或 "dlltool.exe not found" 怎么办？
 
-A: 这是因为缺少编译工具链。有两种解决方案：
+A: 这是因为缺少编译工具链。有三种解决方案：
 
 **方案 1（推荐）**: 安装 Visual Studio Build Tools (MSVC)
 1. 访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/
@@ -342,37 +582,144 @@ A: 这是因为缺少编译工具链。有两种解决方案：
 3. 在安装程序中选择 "Desktop development with C++" 工作负载
 4. 安装完成后重新编译：`cargo build --release`
 
-**方案 2**: 使用 GNU 工具链（MinGW-w64）- 静态链接，无需运行时
+**方案 2**: 使用 GNU 工具链（MinGW-w64）
 1. 安装 MinGW-w64：
    - 通过 Chocolatey: `choco install mingw -y`
    - 或通过 MSYS2: `pacman -S mingw-w64-x86_64-toolchain`
    
 2. 配置 Rust：
-   ```bash
+   ```powershell
+   # 添加 GNU 目标
    rustup target add x86_64-pc-windows-gnu
+   
+   # 设置 GNU 为默认工具链（可选，推荐）
    rustup default stable-x86_64-pc-windows-gnu
    ```
 
 3. 编译项目：
-   ```bash
+   ```powershell
+   # 如果设置了 GNU 为默认工具链
+   cargo build --release
+   
+   # 或者显式指定目标（如果保持 MSVC 为默认）
    cargo build --release --target x86_64-pc-windows-gnu
    ```
 
 **方案 3**: 使用一键安装脚本
 1. 运行 `setup-windows.ps1` 脚本
 2. 当提示选择时，选择 "2" 使用 GNU 工具链
-3. 脚本会自动安装所有依赖
+3. 脚本会自动安装所有依赖并配置环境
 
-**GNU 工具链的优势：**
-- ✅ 完全静态链接，生成的 exe 文件独立运行
-- ✅ 无需安装 Visual C++ 运行时库
-- ✅ 适合绿色便携部署
-- ✅ 文件体积可能更小
+### Q: cargo build 时一直反复同步 MSVC 工具链怎么办？
 
-**MSVC 工具链的优势：**
-- ✅ 官方推荐，兼容性最好
-- ✅ 与 Windows 系统集成更紧密
-- ✅ 调试工具支持更完善
+A: **问题原因：** 当你的默认工具链是 MSVC，但尝试用 `--target x86_64-pc-windows-gnu` 编译时，cargo 会反复尝试同步 MSVC 工具链的更新，导致卡顿。
+
+**解决方案：**
+
+**方法 1：切换默认工具链为 GNU（推荐）**
+```powershell
+# 1. 设置默认主机为 GNU
+rustup set default-host x86_64-pc-windows-gnu
+
+# 2. 安装 GNU 工具链
+rustup toolchain install stable-x86_64-pc-windows-gnu
+
+# 3. 设置为默认工具链
+rustup default stable-x86_64-pc-windows-gnu
+
+# 4. 验证当前工具链
+rustup show
+
+# 5. 正常编译（无需指定 --target）
+cargo build --release
+```
+
+**方法 2：在新终端中使用，避免缓存问题**
+```powershell
+# 1. 确保已安装 GNU 目标
+rustup target add x86_64-pc-windows-gnu
+
+# 2. 关闭当前 PowerShell 窗口
+
+# 3. 打开新的 PowerShell 窗口
+
+# 4. 进入项目目录重新编译
+cd C:\path\to\your-project
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+**方法 3：清理并重新配置**
+```powershell
+# 1. 清理构建缓存
+cargo clean
+
+# 2. 添加 GNU 工具链
+rustup toolchain install stable-x86_64-pc-windows-gnu
+
+# 3. 设置为默认
+rustup default stable-x86_64-pc-windows-gnu
+
+# 4. 确保 MSYS2 的 mingw64\bin 在 PATH 中
+# 例如：C:\msys64\mingw64\bin 或 scoop\apps\msys2\current\mingw64\bin
+
+# 5. 重新编译
+cargo build --release
+```
+
+**验证配置是否成功：**
+```powershell
+# 查看当前工具链配置
+rustup show
+
+# 输出应该类似：
+# Default host: x86_64-pc-windows-gnu
+# ...
+# active toolchain: stable-x86_64-pc-windows-gnu (default)
+
+# 验证编译器路径
+rustc --version --verbose
+```
+
+### Q: 如何在 MSVC 和 GNU 工具链之间切换？
+
+A: Rust 支持同时安装多个工具链，可以灵活切换：
+
+**查看已安装的工具链：**
+```powershell
+rustup toolchain list
+```
+
+**切换默认工具链：**
+```powershell
+# 切换到 MSVC
+rustup default stable-x86_64-pc-windows-msvc
+
+# 切换到 GNU
+rustup default stable-x86_64-pc-windows-gnu
+```
+
+**为单个项目指定工具链（推荐）：**
+
+在项目根目录创建 `rust-toolchain.toml` 文件：
+```toml
+[toolchain]
+channel = "stable"
+targets = ["x86_64-pc-windows-gnu"]
+```
+
+或使用 `rust-toolchain` 文件（简化版）：
+```
+stable-x86_64-pc-windows-gnu
+```
+
+**临时使用特定工具链编译：**
+```powershell
+# 使用 MSVC 编译
+cargo +stable-x86_64-pc-windows-msvc build --release
+
+# 使用 GNU 编译
+cargo +stable-x86_64-pc-windows-gnu build --release
+```
 
 ### Q: 如何处理人机验证？
 
