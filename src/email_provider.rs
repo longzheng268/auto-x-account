@@ -141,8 +141,21 @@ impl EmailProviderManager {
         let mut emails = Vec::new();
         let mut failed_count = 0;
 
+        // 检查是否为 Plus 模式
+        let is_plus_mode = self.validation_config.as_ref()
+            .map(|cfg| cfg.email_provider.plus_mode.enabled)
+            .unwrap_or(false);
+
         for i in 0..count {
-            match self.create_temp_email().await {
+            let result = if is_plus_mode {
+                // Plus 模式：传递索引以生成不同的后缀
+                self.create_plus_mode_email(Some(i + 1)).await
+            } else {
+                // 普通模式
+                self.create_temp_email().await
+            };
+
+            match result {
                 Ok(email) => {
                     info!("成功创建邮箱 {}/{}: {}", i + 1, count, email.address);
                     emails.push(email);
@@ -225,6 +238,14 @@ impl EmailProviderManager {
     /// 创建临时邮箱（带生产模式检查）
     /// Create temporary email (with production mode check)
     pub async fn create_temp_email(&self) -> Result<TempEmail> {
+        // 优先检查 Plus 模式
+        // Check Plus mode first
+        if let Some(validation_cfg) = &self.validation_config {
+            if validation_cfg.email_provider.plus_mode.enabled {
+                return self.create_plus_mode_email(None).await;
+            }
+        }
+
         // 验证提供商
         self.validate_provider()?;
 
@@ -265,6 +286,50 @@ impl EmailProviderManager {
                 })
             }
         }
+    }
+
+    /// 创建 Plus 模式邮箱
+    /// Create Plus mode email
+    async fn create_plus_mode_email(&self, index: Option<usize>) -> Result<TempEmail> {
+        let validation_cfg = self.validation_config.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Plus 模式需要配置信息 / Plus mode requires config"))?;
+
+        let plus_config = &validation_cfg.email_provider.plus_mode;
+        
+        // 验证基础邮箱
+        plus_config.validate_base_email()?;
+        
+        // 生成邮箱地址
+        let email_address = plus_config.generate_plus_email(index)?;
+        
+        info!("生成 Plus 模式邮箱: {}", email_address);
+        
+        // 确定提供商类型
+        let provider = if let Some(base_email) = &plus_config.base_email {
+            let domain = base_email.split('@').nth(1).unwrap_or("").to_lowercase();
+            if domain.contains("gmail") || domain.contains("googlemail") {
+                EmailProvider::Gmail
+            } else if domain.contains("outlook") || domain.contains("hotmail") || domain.contains("live") {
+                EmailProvider::Outlook
+            } else if domain.contains("yahoo") {
+                EmailProvider::Yahoo
+            } else if domain.contains("proton") {
+                EmailProvider::ProtonMail
+            } else if domain.contains("zoho") {
+                EmailProvider::ZohoMail
+            } else {
+                EmailProvider::Custom
+            }
+        } else {
+            EmailProvider::Custom
+        };
+        
+        Ok(TempEmail {
+            address: email_address,
+            password: None, // Plus 模式不需要密码，验证码会发到基础邮箱 / Plus mode doesn't need password, verification codes go to base email
+            token: None,
+            provider,
+        })
     }
 
     /// 导出邮箱列表到文件

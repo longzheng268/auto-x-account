@@ -83,6 +83,147 @@ pub struct EmailProviderSettings {
     /// 自定义提供商的API端点
     #[serde(default)]
     pub custom_api_endpoint: Option<String>,
+    /// Email Plus Mode - 使用 Gmail/Outlook 的 "+" 后缀模式
+    /// Email Plus Mode - Use Gmail/Outlook "+" suffix mode
+    #[serde(default)]
+    pub plus_mode: EmailPlusMode,
+}
+
+/// Email Plus Mode 配置
+/// Email Plus Mode configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmailPlusMode {
+    /// 是否启用 Plus 模式
+    /// Enable plus mode
+    #[serde(default)]
+    pub enabled: bool,
+    /// 基础邮箱地址（例如：yourname@gmail.com）
+    /// Base email address (e.g., yourname@gmail.com)
+    #[serde(default)]
+    pub base_email: Option<String>,
+    /// 后缀生成模式：manual（手动指定）或 auto（自动生成）
+    /// Suffix generation mode: manual or auto
+    #[serde(default = "default_plus_suffix_mode")]
+    pub suffix_mode: PlusSuffixMode,
+    /// 手动指定的后缀（仅在 manual 模式下使用）
+    /// Manual suffix (only used in manual mode)
+    #[serde(default)]
+    pub manual_suffix: Option<String>,
+}
+
+/// Plus 模式后缀生成方式
+/// Plus mode suffix generation method
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlusSuffixMode {
+    /// 手动指定后缀
+    Manual,
+    /// 自动生成人名后缀
+    Auto,
+}
+
+fn default_plus_suffix_mode() -> PlusSuffixMode {
+    PlusSuffixMode::Auto
+}
+
+impl Default for EmailPlusMode {
+    fn default() -> Self {
+        EmailPlusMode {
+            enabled: false,
+            base_email: None,
+            suffix_mode: PlusSuffixMode::Auto,
+            manual_suffix: None,
+        }
+    }
+}
+
+impl EmailPlusMode {
+    /// 生成带 + 后缀的邮箱地址
+    /// Generate email address with + suffix
+    pub fn generate_plus_email(&self, index: Option<usize>) -> Result<String> {
+        if !self.enabled {
+            anyhow::bail!("Plus 模式未启用 / Plus mode is not enabled");
+        }
+
+        let base_email = self.base_email.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("基础邮箱地址未设置 / Base email is not set"))?;
+
+        // 分离用户名和域名
+        let parts: Vec<&str> = base_email.split('@').collect();
+        if parts.len() != 2 {
+            anyhow::bail!("无效的邮箱地址格式 / Invalid email format: {}", base_email);
+        }
+
+        let username = parts[0];
+        let domain = parts[1];
+
+        let suffix = match self.suffix_mode {
+            PlusSuffixMode::Manual => {
+                self.manual_suffix.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("手动模式下必须指定后缀 / Manual suffix is required in manual mode"))?
+                    .clone()
+            }
+            PlusSuffixMode::Auto => {
+                self.generate_human_like_suffix(index)
+            }
+        };
+
+        Ok(format!("{}+{}@{}", username, suffix, domain))
+    }
+
+    /// 生成类人的后缀（避免看起来像机器）
+    /// Generate human-like suffix (avoid looking like a bot)
+    fn generate_human_like_suffix(&self, index: Option<usize>) -> String {
+        use fake::faker::name::raw::*;
+        use fake::locales::*;
+        use fake::Fake;
+
+        // 如果提供了索引，使用混合方案
+        if let Some(idx) = index {
+            // 使用索引和随机名字的组合，使其更自然
+            let first_name: String = FirstName(EN).fake();
+            format!("{}{}", first_name.to_lowercase(), idx)
+        } else {
+            // 完全随机的名字后缀
+            let first_name: String = FirstName(EN).fake();
+            let random_num: u16 = (1..999).fake();
+            format!("{}{}", first_name.to_lowercase(), random_num)
+        }
+    }
+
+    /// 验证基础邮箱是否有效
+    /// Validate if base email is valid
+    pub fn validate_base_email(&self) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        let base_email = self.base_email.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Plus 模式已启用但未设置基础邮箱 / Plus mode enabled but base email is not set"))?;
+
+        // 简单验证邮箱格式
+        if !base_email.contains('@') || base_email.split('@').count() != 2 {
+            anyhow::bail!("无效的基础邮箱格式 / Invalid base email format: {}", base_email);
+        }
+
+        let parts: Vec<&str> = base_email.split('@').collect();
+        let domain = parts[1].to_lowercase();
+
+        // 检查是否为支持的域名（Gmail、Outlook、Yahoo 等）
+        let supported_domains = ["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", 
+                                  "live.com", "yahoo.com", "yahoo.co.uk", "protonmail.com", 
+                                  "pm.me", "zoho.com"];
+
+        if !supported_domains.iter().any(|&d| domain.ends_with(d)) {
+            tracing::warn!(
+                "Plus 模式通常用于 Gmail/Outlook/Yahoo 等主流邮箱提供商。当前域名：{} / \
+                Plus mode is typically used with Gmail/Outlook/Yahoo. Current domain: {}",
+                domain, domain
+            );
+        }
+
+        Ok(())
+    }
 }
 
 /// 人机验证配置
@@ -721,6 +862,7 @@ impl Default for EmailProviderSettings {
             custom_password: None,
             custom_api_key: None,
             custom_api_endpoint: None,
+            plus_mode: EmailPlusMode::default(),
         }
     }
 }

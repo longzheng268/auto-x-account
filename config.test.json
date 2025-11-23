@@ -28,7 +28,18 @@
       "Mailinator"
     ],
     "// 允许的临时邮箱提供商（测试模式可用）": "",
-    "// Allowed temporary email providers (available in test mode)": ""
+    "// Allowed temporary email providers (available in test mode)": "",
+    
+    "plus_mode": {
+      "enabled": false,
+      "// 是否启用 Plus 模式": "",
+      "base_email": null,
+      "// 基础邮箱地址（例如：yourname@gmail.com）": "",
+      "suffix_mode": "auto",
+      "// 后缀模式：auto（自动生成）或 manual（手动指定）": "",
+      "manual_suffix": null,
+      "// 手动后缀（仅在 manual 模式下使用）": ""
+    }
   },
 
   "// ========== SMTP 服务器配置 / SMTP Server Configuration ==========": "",

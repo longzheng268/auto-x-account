@@ -53,7 +53,13 @@
     "custom_username": null,
     "custom_password": null,
     "custom_api_key": null,
-    "custom_api_endpoint": null
+    "custom_api_endpoint": null,
+    "plus_mode": {
+      "enabled": false,
+      "base_email": null,
+      "suffix_mode": "auto",
+      "manual_suffix": null
+    }
   },
   "captcha": {
     "mode": "auto",
