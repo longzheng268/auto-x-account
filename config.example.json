@@ -1,0 +1,40 @@
+{
+  "language": "zh-CN",
+  "smtp": {
+    "host": "0.0.0.0",
+    "port": 8025,
+    "domain": "example.com",
+    "enable": true
+  },
+  "proxy": {
+    "mode": "none",
+    "type": "socks5",
+    "host": "127.0.0.1",
+    "port": 1080,
+    "username": "",
+    "password": ""
+  },
+  "browser": {
+    "headless": false,
+    "timeout": 30000,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "user_data_dir": "browser_data"
+  },
+  "x_account": {
+    "base_url": "https://twitter.com/i/flow/signup",
+    "email_wait_timeout": 120,
+    "retry_times": 3
+  },
+  "output": {
+    "screenshots_dir": "screenshots",
+    "logs_dir": "logs",
+    "accounts_file": "accounts.json"
+  },
+  "ui": {
+    "font": "MiSans",
+    "font_path": "fonts/MiSans-Regular.ttf"
+  }
+}

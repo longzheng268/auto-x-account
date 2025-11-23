@@ -1,0 +1,41 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Configuration
+config.json
+.env
+
+# Logs
+*.log
+logs/
+
+# Browser data
+browser_data/
+screenshots/
+cookies/
+
+# Output
+dist/
+release/
+accounts.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fonts cache
+fonts/.cache/
+
+
+# Added by cargo
+
+/target

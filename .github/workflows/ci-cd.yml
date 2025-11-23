@@ -1,0 +1,183 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # 代码检查和测试
+  check:
+    name: Check and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码 / Checkout code
+        uses: actions/checkout@v4
+
+      - name: 安装 Rust / Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 缓存 Cargo / Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 代码格式检查 / Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy 检查 / Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: 运行测试 / Run tests
+        run: cargo test --all-features
+
+  # 构建多平台二进制文件
+  build:
+    name: Build - ${{ matrix.platform.name }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Windows x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: auto-x-account.exe
+            asset_name: auto-x-account-windows-x86_64
+            
+          - name: macOS x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: auto-x-account
+            asset_name: auto-x-account-macos-x86_64
+            
+          - name: macOS ARM64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: auto-x-account
+            asset_name: auto-x-account-macos-arm64
+            
+          - name: Linux x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: auto-x-account
+            asset_name: auto-x-account-linux-x86_64
+
+    runs-on: ${{ matrix.platform.os }}
+    
+    steps:
+      - name: 检出代码 / Checkout code
+        uses: actions/checkout@v4
+
+      - name: 安装 Rust / Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: 安装依赖 (Linux) / Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config libdbus-1-dev libglib2.0-dev
+
+      - name: 缓存 Cargo / Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.platform.os }}-${{ matrix.platform.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 构建发布版本 / Build release
+        run: cargo build --release --target ${{ matrix.platform.target }}
+
+      - name: 打包二进制文件 / Package binary
+        shell: bash
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            7z a ../../../${{ matrix.platform.asset_name }}.zip ${{ matrix.platform.artifact_name }}
+          else
+            tar czf ../../../${{ matrix.platform.asset_name }}.tar.gz ${{ matrix.platform.artifact_name }}
+          fi
+
+      - name: 上传构建产物 / Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.platform.asset_name }}
+          path: |
+            ${{ matrix.platform.asset_name }}.zip
+            ${{ matrix.platform.asset_name }}.tar.gz
+
+  # 创建 GitHub Release
+  release:
+    name: Create Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: 检出代码 / Checkout code
+        uses: actions/checkout@v4
+
+      - name: 下载所有构建产物 / Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: 创建 Release / Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## X 账号自动注册系统 ${{ github.ref_name }}
+            
+            ### 下载 / Downloads
+            
+            #### Windows
+            - 便携版: `auto-x-account-windows-x86_64.zip`
+            
+            #### macOS
+            - Intel: `auto-x-account-macos-x86_64.tar.gz`
+            - Apple Silicon: `auto-x-account-macos-arm64.tar.gz`
+            
+            #### Linux
+            - 通用版: `auto-x-account-linux-x86_64.tar.gz`
+            
+            ### 使用方法 / Usage
+            
+            ```bash
+            # 启动 GUI
+            ./auto-x-account
+            
+            # 或使用命令行
+            ./auto-x-account register --email your@email.com
+            
+            # 批量注册
+            ./auto-x-account batch --count 10 --concurrent 3
+            ```
+            
+          files: |
+            auto-x-account-windows-x86_64/*.zip
+            auto-x-account-macos-x86_64/*.tar.gz
+            auto-x-account-macos-arm64/*.tar.gz
+            auto-x-account-linux-x86_64/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
