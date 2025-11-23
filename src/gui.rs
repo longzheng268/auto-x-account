@@ -195,15 +195,33 @@ impl AutoXAccountApp {
 
                 ui.add_space(12.0);
 
-                // 邮箱提供商显示
+                // 邮箱提供商和 Plus 模式显示
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("当前邮箱提供商:").size(14.0).color(self.colors.text_secondary));
-                    ui.label(
-                        RichText::new(&state.config.email_provider.selected_provider)
-                            .size(14.0)
-                            .color(self.colors.primary)
-                            .strong(),
-                    );
+                    
+                    // 显示 Plus 模式或普通提供商
+                    if state.config.email_provider.plus_mode.enabled {
+                        ui.label(
+                            RichText::new("➕ Plus 模式")
+                                .size(14.0)
+                                .color(self.colors.accent_gold)
+                                .strong(),
+                        );
+                        if let Some(base_email) = &state.config.email_provider.plus_mode.base_email {
+                            ui.label(
+                                RichText::new(format!("({})", base_email))
+                                    .size(13.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                        }
+                    } else {
+                        ui.label(
+                            RichText::new(&state.config.email_provider.selected_provider)
+                                .size(14.0)
+                                .color(self.colors.primary)
+                                .strong(),
+                        );
+                    }
                     ui.label(RichText::new("(可在设置中更改)").size(12.0).color(self.colors.text_secondary).italics());
                 });
 
@@ -683,6 +701,164 @@ impl AutoXAccountApp {
                                     .color(self.colors.success),
                             );
                         }
+                    }
+
+                    ui.add_space(16.0);
+                    ui.separator();
+                    ui.add_space(16.0);
+
+                    // Email Plus 模式设置
+                    ui.label(
+                        RichText::new("➕ Email Plus 模式")
+                            .size(18.0)
+                            .color(self.colors.text_primary)
+                            .strong(),
+                    );
+                    ui.add_space(8.0);
+
+                    ui.label(
+                        RichText::new("使用 Gmail/Outlook 的 '+' 后缀模式进行测试，所有验证码发到原邮箱")
+                            .size(13.0)
+                            .color(self.colors.text_secondary),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("例如: yourname+test01@gmail.com → 验证码发到 yourname@gmail.com")
+                            .size(12.0)
+                            .color(self.colors.text_secondary)
+                            .italics(),
+                    );
+                    ui.add_space(8.0);
+
+                    ui.checkbox(&mut state.config.email_provider.plus_mode.enabled, "启用 Plus 模式");
+
+                    if state.config.email_provider.plus_mode.enabled {
+                        ui.add_space(8.0);
+
+                        // 基础邮箱输入
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("基础邮箱:").size(14.0));
+                            let mut base_email = state.config.email_provider.plus_mode.base_email.clone().unwrap_or_default();
+                            if ui.add(
+                                egui::TextEdit::singleline(&mut base_email)
+                                    .hint_text("yourname@gmail.com")
+                                    .desired_width(250.0)
+                            ).changed() {
+                                state.config.email_provider.plus_mode.base_email = empty_string_to_none(base_email);
+                            }
+                        });
+
+                        ui.add_space(8.0);
+
+                        // 后缀生成模式
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("后缀模式:").size(14.0));
+                            ui.radio_value(
+                                &mut state.config.email_provider.plus_mode.suffix_mode,
+                                crate::config::PlusSuffixMode::Auto,
+                                "自动生成人名",
+                            );
+                            ui.radio_value(
+                                &mut state.config.email_provider.plus_mode.suffix_mode,
+                                crate::config::PlusSuffixMode::Manual,
+                                "手动指定",
+                            );
+                        });
+
+                        ui.add_space(4.0);
+
+                        // 手动模式下的后缀输入
+                        if state.config.email_provider.plus_mode.suffix_mode == crate::config::PlusSuffixMode::Manual {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("后缀:").size(14.0));
+                                let mut manual_suffix = state.config.email_provider.plus_mode.manual_suffix.clone().unwrap_or_default();
+                                if ui.add(
+                                    egui::TextEdit::singleline(&mut manual_suffix)
+                                        .hint_text("test01")
+                                        .desired_width(150.0)
+                                ).changed() {
+                                    state.config.email_provider.plus_mode.manual_suffix = empty_string_to_none(manual_suffix);
+                                }
+                                ui.label(
+                                    RichText::new("(不含 '+' 符号)")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary)
+                                        .italics(),
+                                );
+                            });
+                        } else {
+                            ui.label(
+                                RichText::new("✨ 自动生成类人后缀，如: john123, emily456")
+                                    .size(12.0)
+                                    .color(self.colors.success),
+                            );
+                        }
+
+                        ui.add_space(8.0);
+
+                        // 显示预览
+                        if let Some(base_email) = &state.config.email_provider.plus_mode.base_email {
+                            if !base_email.is_empty() {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new("预览:")
+                                            .size(14.0)
+                                            .color(self.colors.text_primary),
+                                    );
+                                    
+                                    // 生成示例邮箱地址
+                                    let example_suffix = if state.config.email_provider.plus_mode.suffix_mode == crate::config::PlusSuffixMode::Manual {
+                                        state.config.email_provider.plus_mode.manual_suffix.as_deref().unwrap_or("test01")
+                                    } else {
+                                        "john123"
+                                    };
+                                    
+                                    let parts: Vec<&str> = base_email.split('@').collect();
+                                    if parts.len() == 2 {
+                                        let preview = format!("{}+{}@{}", parts[0], example_suffix, parts[1]);
+                                        ui.label(
+                                            RichText::new(preview)
+                                                .size(14.0)
+                                                .color(self.colors.primary)
+                                                .monospace()
+                                                .strong(),
+                                        );
+                                    }
+                                });
+                            }
+                        }
+
+                        ui.add_space(8.0);
+                        
+                        // 提示信息
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(254, 249, 231))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(251, 191, 36)))
+                            .rounding(Rounding::same(6.0))
+                            .inner_margin(egui::style::Margin::same(10.0))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new("💡 提示:")
+                                        .size(13.0)
+                                        .color(self.colors.warning)
+                                        .strong(),
+                                );
+                                ui.label(
+                                    RichText::new("• 推荐使用 Gmail/Outlook/Yahoo 等主流邮箱")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary),
+                                );
+                                ui.label(
+                                    RichText::new("• 自动生成模式会创建类似真人的名字后缀")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary),
+                                );
+                                ui.label(
+                                    RichText::new("• 所有验证码都会发送到您的基础邮箱")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary),
+                                );
+                            });
                     }
 
                     ui.add_space(16.0);

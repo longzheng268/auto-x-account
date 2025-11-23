@@ -59,11 +59,21 @@ impl EmailHandler {
     ) -> Option<String> {
         let start = Instant::now();
 
+        // 如果是 plus 模式邮箱，也检查基础邮箱
+        let base_email = extract_base_email(email_address);
+
         loop {
             {
                 let codes = self.verification_codes.lock().unwrap();
+                // 首先尝试完整地址
                 if let Some(code) = codes.get(email_address) {
                     return Some(code.clone());
+                }
+                // 如果是 plus 模式，尝试基础邮箱
+                if let Some(base) = &base_email {
+                    if let Some(code) = codes.get(base.as_str()) {
+                        return Some(code.clone());
+                    }
                 }
             }
 
@@ -82,6 +92,27 @@ impl EmailHandler {
         let mut codes = self.verification_codes.lock().unwrap();
         codes.clear();
     }
+}
+
+/// 从 plus 模式邮箱提取基础邮箱
+/// Extract base email from plus mode email
+/// Example: "user+test@gmail.com" -> "user@gmail.com"
+fn extract_base_email(email: &str) -> Option<String> {
+    if !email.contains('+') {
+        return None;
+    }
+    
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    
+    let username_parts: Vec<&str> = parts[0].split('+').collect();
+    if username_parts.is_empty() {
+        return None;
+    }
+    
+    Some(format!("{}@{}", username_parts[0], parts[1]))
 }
 
 /// 从邮件内容中提取验证码
