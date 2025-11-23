@@ -26,7 +26,7 @@
       "TenMinuteMail",
       "DropMail",
       "Mailinator"
-    ]
+    ],
     "// 允许的临时邮箱提供商（测试模式可用）": "",
     "// Allowed temporary email providers (available in test mode)": ""
   },

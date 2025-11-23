@@ -701,11 +701,19 @@ impl EmailProviderManager {
         let mut result = Vec::new();
         if let Some(msgs) = data["msgs"].as_array() {
             for msg in msgs {
+                // Safely extract body from parts array
+                let body = msg["parts"]
+                    .as_array()
+                    .and_then(|parts| parts.get(0))
+                    .and_then(|part| part["body"].as_str())
+                    .unwrap_or("")
+                    .to_string();
+                
                 result.push(EmailMessage {
                     id: msg["id"].as_str().unwrap_or("").to_string(),
                     from: msg["from"].as_str().unwrap_or("").to_string(),
                     subject: msg["subject"].as_str().unwrap_or("").to_string(),
-                    body: msg["parts"][0]["body"].as_str().unwrap_or("").to_string(),
+                    body,
                     received_at: msg["time"].as_str().unwrap_or("").to_string(),
                 });
             }

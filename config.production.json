@@ -24,7 +24,7 @@
     "allowed_temp_providers": [
       "MailTm",
       "GuerrillaMail"
-    ]
+    ],
     "// 允许的临时邮箱（仅测试模式可用）": ""
   },
 
@@ -65,7 +65,7 @@
       "height": 720
     },
     "user_data_dir": "browser_data",
-    "chrome_path": null
+    "chrome_path": null,
     "// Chrome路径 - 留空则自动检测": ""
   },
 

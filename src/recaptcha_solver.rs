@@ -228,9 +228,9 @@ impl RecaptchaSolver {
 
             let status = result_data["request"]
                 .as_str()
-                .unwrap_or("CAPCHA_NOT_READY");
+                .unwrap_or("CAPTCHA_NOT_READY");
 
-            if status != "CAPCHA_NOT_READY" {
+            if status != "CAPTCHA_NOT_READY" {
                 anyhow::bail!("验证码解决失败: {}", status);
             }
         }
