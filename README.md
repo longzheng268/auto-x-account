@@ -78,6 +78,49 @@ cargo build --release
 ./target/release/auto-x-account
 ```
 
+## 🗑️ 卸载
+
+### 完全清理开发环境
+
+如果你不再需要此项目，可以使用一键卸载脚本完全清理所有安装的开发环境：
+
+**Windows:**
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall-windows.ps1
+```
+
+**macOS:**
+```bash
+./uninstall-macos.sh
+```
+
+**Linux:**
+```bash
+./uninstall-linux.sh
+```
+
+卸载脚本会清理：
+- ✅ 项目构建产物和数据文件
+- ✅ Rust 工具链（可选）
+- ✅ 通过包管理器安装的开发工具（可选）
+- ✅ 应用程序数据和缓存
+- ✅ 环境变量配置
+- ✅ 临时文件
+
+**注意**: 脚本会询问是否卸载 Rust 和其他开发工具，因为它们可能被其他项目使用。
+
+### 仅删除项目文件
+
+如果只想删除项目文件而保留开发环境：
+
+```bash
+# 删除构建产物
+cargo clean
+
+# 删除运行数据
+rm -rf browser_data screenshots logs accounts.json config.json
+```
+
 ## 🚀 快速开始
 
 ### GUI 模式（默认）
