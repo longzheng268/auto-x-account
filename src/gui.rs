@@ -356,10 +356,37 @@ impl AutoXAccountApp {
         }
 
         egui::Window::new("⚙ 设置")
-            .fixed_size(Vec2::new(500.0, 600.0))
+            .fixed_size(Vec2::new(700.0, 700.0))
             .collapsible(false)
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
+                    // 运行模式设置
+                    ui.label(
+                        RichText::new("🏭 运行模式")
+                            .size(18.0)
+                            .color(self.colors.text_primary)
+                            .strong(),
+                    );
+                    ui.add_space(8.0);
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("模式:");
+                        ui.radio_value(
+                            &mut state.config.mode,
+                            crate::config::RunMode::Test,
+                            "测试模式 (可使用临时邮箱)",
+                        );
+                        ui.radio_value(
+                            &mut state.config.mode,
+                            crate::config::RunMode::Production,
+                            "生产模式 (仅自建邮箱)",
+                        );
+                    });
+                    
+                    ui.add_space(16.0);
+                    ui.separator();
+                    ui.add_space(16.0);
+
                     // SMTP 设置
                     ui.label(
                         RichText::new("📧 SMTP 设置")
@@ -378,6 +405,104 @@ impl AutoXAccountApp {
                         ui.label("端口:");
                         ui.add(egui::DragValue::new(&mut state.config.smtp.port));
                     });
+                    ui.horizontal(|ui| {
+                        ui.label("域名:");
+                        ui.text_edit_singleline(&mut state.config.smtp.domain);
+                    });
+
+                    ui.add_space(16.0);
+                    ui.separator();
+                    ui.add_space(16.0);
+
+                    // 人机验证设置
+                    ui.label(
+                        RichText::new("🤖 人机验证设置")
+                            .size(18.0)
+                            .color(self.colors.text_primary)
+                            .strong(),
+                    );
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label("验证模式:");
+                        ui.radio_value(
+                            &mut state.config.captcha.mode,
+                            crate::config::CaptchaMode::Auto,
+                            "自动 (推荐)",
+                        );
+                        ui.radio_value(
+                            &mut state.config.captcha.mode,
+                            crate::config::CaptchaMode::Manual,
+                            "手动",
+                        );
+                        ui.radio_value(
+                            &mut state.config.captcha.mode,
+                            crate::config::CaptchaMode::Llm,
+                            "LLM (测试)",
+                        );
+                    });
+
+                    ui.add_space(8.0);
+                    ui.checkbox(&mut state.config.captcha.manual_fallback, "启用手动模式作为后备");
+
+                    // 根据模式显示不同的配置
+                    match state.config.captcha.mode {
+                        crate::config::CaptchaMode::Auto => {
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("ℹ 使用 Selenium + 第三方验证服务自动解决 ReCAPTCHA")
+                                    .size(13.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(RichText::new("第三方服务 API Keys (至少配置一个):").size(14.0));
+                            
+                            ui.horizontal(|ui| {
+                                ui.label("2Captcha:");
+                                let mut key = state.config.captcha.two_captcha_api_key.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut key).changed() {
+                                    state.config.captcha.two_captcha_api_key = if key.is_empty() { None } else { Some(key) };
+                                }
+                            });
+                            
+                            ui.horizontal(|ui| {
+                                ui.label("Anti-Captcha:");
+                                let mut key = state.config.captcha.anti_captcha_api_key.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut key).changed() {
+                                    state.config.captcha.anti_captcha_api_key = if key.is_empty() { None } else { Some(key) };
+                                }
+                            });
+                            
+                            ui.horizontal(|ui| {
+                                ui.label("CapMonster:");
+                                let mut key = state.config.captcha.capmonster_api_key.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut key).changed() {
+                                    state.config.captcha.capmonster_api_key = if key.is_empty() { None } else { Some(key) };
+                                }
+                            });
+                        }
+                        crate::config::CaptchaMode::Manual => {
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("ℹ 程序会暂停并等待用户在浏览器中手动完成验证")
+                                    .size(13.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                        }
+                        crate::config::CaptchaMode::Llm => {
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("⚠️ LLM API 是测试功能，不保证稳定性")
+                                    .size(13.0)
+                                    .color(self.colors.warning),
+                            );
+                            ui.add_space(8.0);
+
+                            // TODO: 添加 LLM API 配置界面
+                            ui.label(RichText::new("LLM API 配置待完善").size(13.0).color(self.colors.text_secondary));
+                        }
+                    }
 
                     ui.add_space(16.0);
                     ui.separator();
@@ -512,6 +637,10 @@ impl AutoXAccountApp {
                                     };
                                 }
                             });
+                            
+                            ui.add_space(8.0);
+                            ui.checkbox(&mut state.config.proxy.browser_enabled, "浏览器使用代理");
+                            ui.checkbox(&mut state.config.proxy.email_enabled, "邮箱使用代理");
                         }
                     }
 
@@ -528,13 +657,58 @@ impl AutoXAccountApp {
                     );
                     ui.add_space(8.0);
 
-                    ui.checkbox(&mut state.config.browser.headless, "无头模式");
+                    ui.checkbox(&mut state.config.browser.headless, "无头模式 (后台运行)");
+                    ui.horizontal(|ui| {
+                        ui.label("超时时间 (ms):");
+                        ui.add(egui::DragValue::new(&mut state.config.browser.timeout).speed(100));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("窗口宽度:");
+                        ui.add(egui::DragValue::new(&mut state.config.browser.viewport.width).speed(10));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("窗口高度:");
+                        ui.add(egui::DragValue::new(&mut state.config.browser.viewport.height).speed(10));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("用户数据目录:");
+                        ui.text_edit_singleline(&mut state.config.browser.user_data_dir);
+                    });
+
+                    ui.add_space(16.0);
+                    ui.separator();
+                    ui.add_space(16.0);
+
+                    // 输出设置
+                    ui.label(
+                        RichText::new("📁 输出设置")
+                            .size(18.0)
+                            .color(self.colors.text_primary)
+                            .strong(),
+                    );
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label("截图目录:");
+                        ui.text_edit_singleline(&mut state.config.output.screenshots_dir);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("日志目录:");
+                        ui.text_edit_singleline(&mut state.config.output.logs_dir);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("账号文件:");
+                        ui.text_edit_singleline(&mut state.config.output.accounts_file);
+                    });
 
                     ui.add_space(16.0);
 
                     // 保存按钮
                     if ui.button(RichText::new("💾 保存设置").size(16.0)).clicked() {
-                        // TODO: 保存配置
+                        // 保存配置到文件
+                        if let Err(e) = state.config.to_file("config.json") {
+                            eprintln!("保存配置失败: {}", e);
+                        }
                         state.show_settings = false;
                     }
                 });

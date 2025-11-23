@@ -1,5 +1,6 @@
 {
   "language": "zh-CN",
+  "mode": "test",
   "smtp": {
     "host": "0.0.0.0",
     "port": 8025,
@@ -23,7 +24,8 @@
       "width": 1280,
       "height": 720
     },
-    "user_data_dir": "browser_data"
+    "user_data_dir": "browser_data",
+    "chrome_path": null
   },
   "x_account": {
     "base_url": "https://twitter.com/i/flow/signup",
@@ -38,5 +40,18 @@
   "ui": {
     "font": "MiSans",
     "font_path": "fonts/MiSans-Regular.ttf"
+  },
+  "email_provider": {
+    "force_self_hosted": false,
+    "allowed_temp_providers": ["MailTm", "GuerrillaMail"],
+    "production_domains": ["example.com"]
+  },
+  "captcha": {
+    "mode": "auto",
+    "manual_fallback": true,
+    "two_captcha_api_key": null,
+    "anti_captcha_api_key": null,
+    "capmonster_api_key": null,
+    "llm_api": null
   }
 }
