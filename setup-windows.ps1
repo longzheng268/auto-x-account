@@ -2,8 +2,8 @@
 # Windows One-Click Build Environment Setup Script (using Scoop)
 
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "X 账号自动注册系统 - Windows 编译环境安装" -ForegroundColor Cyan
-Write-Host "X Account Auto Registration - Windows Build Setup" -ForegroundColor Cyan
+Write-Host "X 账号自动注册系统 - Windows 环境管理" -ForegroundColor Cyan
+Write-Host "X Account Auto Registration - Windows Environment Manager" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -15,9 +15,84 @@ if (-not $isAdmin) {
     Write-Host ""
 }
 
+# 全局变量：是否已有完整环境
+$script:hasCompleteEnvironment = $false
+$script:needSetup = $false
+
 # ============================================
 # 辅助函数 / Helper Functions
 # ============================================
+
+# 检查是否已有完整的编译环境
+function Test-CompleteEnvironment {
+    Write-Host "正在检测编译环境..." -ForegroundColor Cyan
+    Write-Host "Detecting build environment..." -ForegroundColor Cyan
+    Write-Host ""
+    
+    $hasRust = $false
+    $hasToolchain = $false
+    $hasGit = $false
+    $toolchainType = "无"
+    
+    # 检查 Rust
+    if (Get-Command rustc -ErrorAction SilentlyContinue) {
+        $rustVersion = rustc --version
+        Write-Host "✓ Rust 已安装: $rustVersion" -ForegroundColor Green
+        $hasRust = $true
+        
+        # 检查工具链配置
+        $toolchainInfo = rustup show 2>&1 | Out-String
+        if ($toolchainInfo -match "x86_64-pc-windows-gnu") {
+            $toolchainType = "GNU"
+            Write-Host "✓ 检测到 GNU 工具链 (MinGW-w64)" -ForegroundColor Green
+            $hasToolchain = $true
+        } elseif ($toolchainInfo -match "x86_64-pc-windows-msvc") {
+            $toolchainType = "MSVC"
+            Write-Host "✓ 检测到 MSVC 工具链" -ForegroundColor Green
+            $hasToolchain = $true
+        }
+    } else {
+        Write-Host "✗ Rust 未安装" -ForegroundColor Yellow
+    }
+    
+    # 检查 Git
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $gitVersion = git --version
+        Write-Host "✓ Git 已安装: $gitVersion" -ForegroundColor Green
+        $hasGit = $true
+    } else {
+        Write-Host "✗ Git 未安装" -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
+    
+    if ($hasRust -and $hasToolchain -and $hasGit) {
+        Write-Host "================================================" -ForegroundColor Green
+        Write-Host "检测到完整的编译环境!" -ForegroundColor Green
+        Write-Host "Complete build environment detected!" -ForegroundColor Green
+        Write-Host "================================================" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "当前配置:" -ForegroundColor Cyan
+        Write-Host "Current configuration:" -ForegroundColor Cyan
+        Write-Host "  - Rust 工具链: $toolchainType" -ForegroundColor White
+        Write-Host "  - Rust toolchain: $toolchainType" -ForegroundColor White
+        Write-Host ""
+        
+        return @{
+            HasEnvironment = $true
+            ToolchainType = $toolchainType
+        }
+    } else {
+        Write-Host "编译环境不完整，需要安装" -ForegroundColor Yellow
+        Write-Host "Build environment incomplete, setup required" -ForegroundColor Yellow
+        Write-Host ""
+        
+        return @{
+            HasEnvironment = $false
+            ToolchainType = $null
+        }
+    }
+}
 
 # 检查 MSVC 工具链是否已安装
 function Test-MSVCInstalled {
@@ -219,6 +294,110 @@ function Configure-MinGWPath {
 # 主程序 / Main Program
 # ============================================
 
+# 首先检测是否已有完整环境
+$envCheck = Test-CompleteEnvironment
+
+if ($envCheck.HasEnvironment) {
+    # 已有完整环境，询问用户意图
+    Write-Host "您想要做什么？" -ForegroundColor Cyan
+    Write-Host "What would you like to do?" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "1. 编译并运行项目 (推荐)" -ForegroundColor Green
+    Write-Host "   Build and run the project (Recommended)" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "2. 重新配置编译环境" -ForegroundColor Yellow
+    Write-Host "   Reconfigure build environment" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "3. 退出" -ForegroundColor Gray
+    Write-Host "   Exit" -ForegroundColor Gray
+    Write-Host ""
+    
+    $userChoice = Read-Host "请选择 (1/2/3)"
+    
+    if ($userChoice -eq "1") {
+        # 编译并运行
+        Write-Host ""
+        Write-Host "================================================" -ForegroundColor Cyan
+        Write-Host "开始编译项目..." -ForegroundColor Green
+        Write-Host "Starting project build..." -ForegroundColor Green
+        Write-Host "================================================" -ForegroundColor Cyan
+        Write-Host ""
+        
+        if (Test-Path "Cargo.toml") {
+            Write-Host "正在编译 (release 模式)..." -ForegroundColor Green
+            Write-Host "Building (release mode)..." -ForegroundColor Green
+            cargo build --release
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host ""
+                Write-Host "编译成功!" -ForegroundColor Green
+                Write-Host "Build successful!" -ForegroundColor Green
+                Write-Host ""
+                
+                $exePath = ".\target\release\auto-x-account.exe"
+                if (Test-Path $exePath) {
+                    Write-Host "是否立即运行程序？(Y/N)" -ForegroundColor Cyan
+                    Write-Host "Run the program now? (Y/N)" -ForegroundColor Cyan
+                    $runNow = Read-Host
+                    
+                    if ($runNow -eq "Y" -or $runNow -eq "y") {
+                        Write-Host ""
+                        Write-Host "正在启动程序..." -ForegroundColor Green
+                        Write-Host "Starting program..." -ForegroundColor Green
+                        & $exePath
+                    } else {
+                        Write-Host ""
+                        Write-Host "可执行文件位于: $exePath" -ForegroundColor Cyan
+                        Write-Host "Executable located at: $exePath" -ForegroundColor Cyan
+                    }
+                }
+            } else {
+                Write-Host ""
+                Write-Host "编译失败，请检查错误信息" -ForegroundColor Red
+                Write-Host "Build failed, please check error messages" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "错误: 未找到 Cargo.toml 文件" -ForegroundColor Red
+            Write-Host "Error: Cargo.toml not found" -ForegroundColor Red
+            Write-Host "请确保在项目根目录运行此脚本" -ForegroundColor Yellow
+            Write-Host "Please run this script from project root directory" -ForegroundColor Yellow
+        }
+        
+        Write-Host ""
+        Write-Host "按任意键退出..." -ForegroundColor Gray
+        Write-Host "Press any key to exit..." -ForegroundColor Gray
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        exit 0
+    }
+    elseif ($userChoice -eq "2") {
+        Write-Host ""
+        Write-Host "将重新配置编译环境..." -ForegroundColor Yellow
+        Write-Host "Reconfiguring build environment..." -ForegroundColor Yellow
+        Write-Host ""
+        $script:needSetup = $true
+    }
+    else {
+        Write-Host "退出" -ForegroundColor Gray
+        Write-Host "Exiting" -ForegroundColor Gray
+        exit 0
+    }
+} else {
+    # 没有完整环境，需要安装
+    $script:needSetup = $true
+}
+
+# 如果需要配置环境，继续执行安装流程
+if (-not $script:needSetup) {
+    exit 0
+}
+
+Write-Host ""
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "开始配置编译环境..." -ForegroundColor Green
+Write-Host "Starting environment setup..." -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Cyan
+Write-Host ""
+
 $hasMSVC = Test-MSVCInstalled
 
 if (-not $hasMSVC) {
@@ -231,12 +410,15 @@ if (-not $hasMSVC) {
     Write-Host "Rust 在 Windows 上默认使用 MSVC 工具链编译。" -ForegroundColor White
     Write-Host "Rust on Windows uses MSVC toolchain by default for compilation." -ForegroundColor White
     Write-Host ""
-    Write-Host "您有两个选择 / You have two options:" -ForegroundColor Cyan
+    Write-Host "您有两个选择:" -ForegroundColor Cyan
+    Write-Host "You have two options:" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "选项 1 (推荐): 安装 Visual Studio Build Tools" -ForegroundColor Green
     Write-Host "Option 1 (Recommended): Install Visual Studio Build Tools" -ForegroundColor Green
-    Write-Host "  1. 访问 / Visit: https://visualstudio.microsoft.com/visual-cpp-build-tools/" -ForegroundColor Gray
+    Write-Host "  1. 访问: https://visualstudio.microsoft.com/visual-cpp-build-tools/" -ForegroundColor Gray
+    Write-Host "     Visit: https://visualstudio.microsoft.com/visual-cpp-build-tools/" -ForegroundColor Gray
     Write-Host "  2. 下载并安装 'Build Tools for Visual Studio 2022'" -ForegroundColor Gray
+    Write-Host "     Download and install 'Build Tools for Visual Studio 2022'" -ForegroundColor Gray
     Write-Host "  3. 在安装程序中选择 'Desktop development with C++' 工作负载" -ForegroundColor Gray
     Write-Host "     In the installer, select 'Desktop development with C++' workload" -ForegroundColor Gray
     Write-Host "  4. 安装完成后重新运行此脚本" -ForegroundColor Gray
@@ -248,10 +430,11 @@ if (-not $hasMSVC) {
     Write-Host "  This option will automatically configure GNU toolchain without Visual Studio" -ForegroundColor Gray
     Write-Host ""
     
-    $choice = Read-Host "请选择 (1 或 2，按 Q 退出) / Please choose (1 or 2, press Q to quit)"
+    $choice = Read-Host "请选择 (1 或 2，按 Q 退出)"
     
     if ($choice -eq "Q" -or $choice -eq "q") {
-        Write-Host "退出安装 / Exiting installation" -ForegroundColor Yellow
+        Write-Host "退出安装" -ForegroundColor Yellow
+        Write-Host "Exiting installation" -ForegroundColor Yellow
         exit 0
     }
     elseif ($choice -eq "1") {
@@ -278,7 +461,8 @@ if (-not $hasMSVC) {
         $useGNU = $true
     }
     else {
-        Write-Host "无效选择，退出 / Invalid choice, exiting" -ForegroundColor Red
+        Write-Host "无效选择，退出" -ForegroundColor Red
+        Write-Host "Invalid choice, exiting" -ForegroundColor Red
         exit 1
     }
 }
