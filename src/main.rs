@@ -9,12 +9,12 @@ mod browser_detector;
 mod captcha;
 mod config;
 mod custom_captcha_solver;
+mod data_dir;
 mod email;
 mod email_provider;
 mod gui;
 mod i18n;
 mod logging;
-mod recaptcha_solver;
 mod registration;
 
 use anyhow::Result;
@@ -105,6 +105,12 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 初始化数据目录
+    // Initialize data directories
+    if let Err(e) = data_dir::init_directories() {
+        eprintln!("初始化数据目录失败 / Failed to initialize data directories: {}", e);
+    }
+
     // 初始化日志系统（文件 + 控制台）
     // Initialize logging system (file + console)
     if let Err(e) = logging::init_logging() {
@@ -118,9 +124,13 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // 清理超过30天的旧日志
-    // Clean up logs older than 30 days
+    // 打印数据目录信息
+    info!("\n{}", data_dir::get_data_dir_info());
+
+    // 清理超过30天的旧日志和任务
+    // Clean up logs and tasks older than 30 days
     let _ = logging::cleanup_old_logs(30);
+    let _ = data_dir::cleanup_old_tasks(30);
 
     let args = Args::parse();
 
@@ -130,15 +140,8 @@ async fn main() -> Result<()> {
         return gui::run_gui().map_err(|e| anyhow::anyhow!("GUI error: {}", e));
     }
 
-    // 加载配置
-    let mut config = if args.config.exists() {
-        Config::from_file(&args.config)?
-    } else {
-        info!("配置文件不存在，使用默认配置并创建示例配置文件");
-        let default_config = Config::default();
-        default_config.to_file("config.example.json")?;
-        default_config
-    };
+    // 加载配置（从数据目录）
+    let mut config = data_dir::load_or_create_config()?;
 
     // 命令行参数覆盖配置
     if let Some(lang) = args.language {
@@ -410,7 +413,8 @@ async fn run_export_accounts(output: String, _format: String, _i18n: &I18n) -> R
 fn save_account_info(config: &Config, account: &registration::AccountInfo) -> Result<()> {
     use std::fs;
 
-    let accounts_file = PathBuf::from(&config.output.accounts_file);
+    // 使用数据目录中的账号文件
+    let accounts_file = data_dir::get_accounts_path();
 
     let mut accounts = if accounts_file.exists() {
         let content = fs::read_to_string(&accounts_file)?;
