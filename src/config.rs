@@ -23,6 +23,10 @@ pub struct Config {
     /// Email provider configuration
     #[serde(default)]
     pub email_provider: EmailProviderSettings,
+    /// 人机验证配置
+    /// Captcha configuration
+    #[serde(default)]
+    pub captcha: CaptchaConfig,
 }
 
 /// 运行模式
@@ -51,6 +55,71 @@ pub struct EmailProviderSettings {
     /// 生产域名列表（必须配置）
     #[serde(default)]
     pub production_domains: Vec<String>,
+}
+
+/// 人机验证配置
+/// Captcha configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptchaConfig {
+    /// 验证方式模式
+    /// Captcha solving mode
+    #[serde(default = "default_captcha_mode")]
+    pub mode: CaptchaMode,
+    /// 是否启用手动模式作为后备
+    /// Enable manual mode as fallback
+    #[serde(default = "default_true")]
+    pub manual_fallback: bool,
+    /// 2Captcha API Key
+    #[serde(default)]
+    pub two_captcha_api_key: Option<String>,
+    /// Anti-Captcha API Key
+    #[serde(default)]
+    pub anti_captcha_api_key: Option<String>,
+    /// CapMonster API Key
+    #[serde(default)]
+    pub capmonster_api_key: Option<String>,
+    /// LLM API 配置（测试功能）
+    /// LLM API configuration (test feature)
+    #[serde(default)]
+    pub llm_api: Option<LlmApiConfig>,
+}
+
+/// 人机验证模式
+/// Captcha solving mode
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptchaMode {
+    /// 自动解决 - 使用自研算法（默认，免费）
+    /// Automatic - Use custom algorithms (default, free)
+    Auto,
+    /// 手动模式 - 等待用户手动完成
+    /// Manual - Wait for user to complete manually
+    Manual,
+    /// 第三方服务 - 使用付费服务（2Captcha等）
+    /// Third-party - Use paid services (2Captcha, etc.)
+    ThirdParty,
+    /// LLM API - 使用大模型 API（测试功能）
+    /// LLM API - Use LLM API (test feature)
+    #[serde(rename = "llm")]
+    Llm,
+}
+
+fn default_captcha_mode() -> CaptchaMode {
+    CaptchaMode::Auto
+}
+
+/// LLM API 配置
+/// LLM API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmApiConfig {
+    /// API 提供商（openai, anthropic, etc.）
+    pub provider: String,
+    /// API Key
+    pub api_key: String,
+    /// API 端点 URL（可选）
+    pub endpoint: Option<String>,
+    /// 模型名称
+    pub model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -569,6 +638,7 @@ impl Default for Config {
             },
             mode: RunMode::Test,
             email_provider: EmailProviderSettings::default(),
+            captcha: CaptchaConfig::default(),
         }
     }
 }
@@ -582,6 +652,19 @@ impl Default for EmailProviderSettings {
                 "GuerrillaMail".to_string(),
             ],
             production_domains: vec!["example.com".to_string()],
+        }
+    }
+}
+
+impl Default for CaptchaConfig {
+    fn default() -> Self {
+        CaptchaConfig {
+            mode: CaptchaMode::Auto,
+            manual_fallback: true,
+            two_captcha_api_key: None,
+            anti_captcha_api_key: None,
+            capmonster_api_key: None,
+            llm_api: None,
         }
     }
 }
