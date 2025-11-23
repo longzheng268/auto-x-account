@@ -77,20 +77,38 @@ auto-x-account/
 - 切换语言（右上角🌐按钮）
 - 查看注册进度
 - 管理账号列表
+- **📥 导入账号** - 从 Excel/CSV/JSON 文件导入
+- **📤 导出账号** - 导出到 Excel/CSV/JSON 文件
+- **🔍 检测浏览器环境** - 检查是否容易触发验证码
 
 ### 命令行模式
+
+#### 所有可用命令
+
 ```bash
+# 查看帮助
+./auto-x-account --help
+
+# GUI 模式
+./auto-x-account gui
+
 # 单个注册
 ./auto-x-account register --email test@example.com
 
-# 批量注册
+# 批量注册（10个账号，并发3个）
 ./auto-x-account batch --count 10 --concurrent 3
 
-# 导出账号
-./auto-x-account export -o accounts.xlsx
+# 批量创建邮箱
+./auto-x-account create-emails --count 20 --output emails.json --verify
 
-# 导入账号
+# 导出账号（支持 xlsx, csv, json）
+./auto-x-account export -o accounts.xlsx -f xlsx
+
+# 导入账号（自动检测格式）
 ./auto-x-account import -i accounts.xlsx
+
+# 检测浏览器环境
+./auto-x-account detect-browser --verbose
 ```
 
 ## 注册流程

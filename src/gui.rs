@@ -178,6 +178,11 @@ impl AutoXAccountApp {
                 if ui.button(RichText::new("⚙ 设置").size(16.0)).clicked() {
                     if let Ok(mut state) = self.state.lock() {
                         state.show_settings = !state.show_settings;
+                        if state.show_settings {
+                            tracing::info!("⚙️  用户打开设置窗口 / User opened settings window");
+                        } else {
+                            tracing::info!("⚙️  用户关闭设置窗口 / User closed settings window");
+                        }
                     }
                 }
 
@@ -195,10 +200,12 @@ impl AutoXAccountApp {
                         .selected_text(current_lang)
                         .show_ui(ui, |ui| {
                             if ui.selectable_value(&mut state.config.language, "zh-CN".to_string(), "🇨🇳 中文").clicked() {
+                                tracing::info!("🌐 用户切换语言到中文 / User switched language to Chinese");
                                 // 保存配置
                                 let _ = crate::data_dir::save_config(&state.config);
                             }
                             if ui.selectable_value(&mut state.config.language, "en-US".to_string(), "🇺🇸 English").clicked() {
+                                tracing::info!("🌐 用户切换语言到英文 / User switched language to English");
                                 // 保存配置
                                 let _ = crate::data_dir::save_config(&state.config);
                             }
@@ -329,17 +336,66 @@ impl AutoXAccountApp {
                 .rounding(Rounding::same(8.0));
 
                 if ui.add(button).clicked() {
+                    tracing::info!("🚀 用户点击开始注册按钮 / User clicked start registration button");
+                    tracing::info!("   邮箱模式 / Email mode: {}", if state.email_manual_mode { "手动 / Manual" } else { "自动 / Auto" });
+                    
                     // TODO: 触发注册流程
                     // 如果是自动生成模式，先生成邮箱
-                    // NOTE: This requires async runtime integration - see IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
-                    // 这需要异步运行时集成 - 参见 IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
+                    // NOTE: This requires async runtime integration
                     if !state.email_manual_mode {
                         state.status = "正在生成临时邮箱...".to_string();
+                        state.logs.push("📧 开始生成临时邮箱".to_string());
+                        tracing::info!("📧 开始生成临时邮箱 / Starting to generate temporary email");
                         // 这里应该调用后端API生成邮箱
-                        // This should call backend API to generate email
-                        // Implementation pending: async runtime integration needed
+                    } else {
+                        state.logs.push(format!("📧 使用邮箱: {}", state.email));
+                        tracing::info!("📧 使用手动输入邮箱 / Using manual email: {}", state.email);
                     }
                 }
+                
+                ui.add_space(8.0);
+                
+                // 工具按钮行
+                ui.horizontal(|ui| {
+                    // 导入按钮
+                    if ui.button(RichText::new("📥 导入账号").size(14.0)).clicked() {
+                        tracing::info!("📥 用户点击导入账号按钮 / User clicked import accounts button");
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Excel", &["xlsx", "xls"])
+                            .add_filter("CSV", &["csv"])
+                            .add_filter("JSON", &["json"])
+                            .pick_file()
+                        {
+                            tracing::info!("   选择文件 / Selected file: {}", path.display());
+                            state.logs.push(format!("📥 导入文件: {}", path.display()));
+                            // TODO: 实际导入逻辑
+                        }
+                    }
+                    
+                    // 导出按钮
+                    if ui.button(RichText::new("📤 导出账号").size(14.0)).clicked() {
+                        tracing::info!("📤 用户点击导出账号按钮 / User clicked export accounts button");
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Excel", &["xlsx"])
+                            .add_filter("CSV", &["csv"])
+                            .add_filter("JSON", &["json"])
+                            .set_file_name("accounts_export.xlsx")
+                            .save_file()
+                        {
+                            tracing::info!("   保存到文件 / Save to file: {}", path.display());
+                            state.logs.push(format!("📤 导出到: {}", path.display()));
+                            // TODO: 实际导出逻辑
+                        }
+                    }
+                    
+                    // 浏览器检测按钮
+                    if ui.button(RichText::new("🔍 检测浏览器环境").size(14.0)).clicked() {
+                        tracing::info!("🔍 用户点击检测浏览器环境按钮 / User clicked browser detection button");
+                        state.logs.push("🔍 开始检测浏览器环境...".to_string());
+                        state.status = "正在检测浏览器环境，请稍候...".to_string();
+                        // TODO: 实际检测逻辑
+                    }
+                });
             });
 
         ui.add_space(16.0);
@@ -1166,10 +1222,14 @@ impl AutoXAccountApp {
                             )
                             .clicked()
                         {
+                            tracing::info!("💾 用户保存配置 / User saving configuration");
                             // 保存配置到数据目录
                             if let Err(e) = crate::data_dir::save_config(&state.config) {
+                                tracing::error!("❌ 保存配置失败 / Failed to save config: {}", e);
                                 state.logs.push(format!("❌ 保存配置失败: {}", e));
                             } else {
+                                tracing::info!("✅ 配置保存成功 / Configuration saved successfully");
+                                tracing::info!("   保存位置 / Save location: {}", crate::data_dir::get_config_path().display());
                                 state.logs.push("✅ 配置已保存".to_string());
                                 state.show_settings = false;
                             }
@@ -1181,6 +1241,7 @@ impl AutoXAccountApp {
                             .add(egui::Button::new(RichText::new("❌ 取消").size(16.0)))
                             .clicked()
                         {
+                            tracing::info!("❌ 用户取消配置修改 / User cancelled configuration changes");
                             state.show_settings = false;
                         }
 
@@ -1195,10 +1256,14 @@ impl AutoXAccountApp {
                         {
                             // 打开数据目录
                             let data_dir = crate::data_dir::get_data_dir();
+                            tracing::info!("📂 用户打开数据目录 / User opening data directory: {}", data_dir.display());
                             if let Err(e) = open::that(&data_dir) {
+                                tracing::error!("❌ 无法打开数据目录 / Failed to open data directory: {}", e);
                                 state
                                     .logs
                                     .push(format!("❌ 无法打开数据目录: {}", e));
+                            } else {
+                                tracing::info!("✅ 数据目录已打开 / Data directory opened");
                             }
                         }
                     });

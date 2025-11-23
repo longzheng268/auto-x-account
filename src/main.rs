@@ -6,6 +6,7 @@
 
 mod batch;
 mod bitbrowser;
+mod browser_detector;
 mod captcha;
 mod config;
 mod data_dir;
@@ -108,6 +109,13 @@ enum Commands {
         #[arg(short, long)]
         input: String,
     },
+
+    /// 检测浏览器环境 / Detect browser environment
+    DetectBrowser {
+        /// 是否详细输出 / Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 #[tokio::main]
@@ -204,6 +212,10 @@ async fn main() -> Result<()> {
 
         Commands::Import { input } => {
             run_import_accounts(input, &i18n).await?;
+        }
+
+        Commands::DetectBrowser { verbose } => {
+            run_browser_detection(config, verbose, &i18n).await?;
         }
     }
 
@@ -365,6 +377,88 @@ async fn run_batch_registration(
     batch_manager
         .export_accounts("batch_accounts.json", batch::ExportFormat::Json)
         .await?;
+
+    Ok(())
+}
+
+async fn run_browser_detection(config: Config, verbose: bool, _i18n: &I18n) -> Result<()> {
+    use chromiumoxide::browser::{Browser, BrowserConfig};
+
+    info!("🔍 开始浏览器环境检测 / Starting browser environment detection");
+
+    // 配置浏览器
+    let mut builder = BrowserConfig::builder();
+    if !config.browser.headless {
+        builder = builder.with_head();
+    }
+
+    // 配置代理
+    if let Some(proxy_url) = config.get_proxy_url(crate::config::ProxyTarget::Browser) {
+        info!("使用代理 / Using proxy: {}", proxy_url);
+        builder = builder.arg(format!("--proxy-server={}", proxy_url));
+    }
+
+    // 设置用户数据目录
+    let user_data_dir = data_dir::get_browser_data_dir();
+    std::fs::create_dir_all(&user_data_dir)?;
+    builder = builder.user_data_dir(&user_data_dir);
+
+    // 启动浏览器
+    info!("🌐 启动浏览器 / Launching browser...");
+    let (mut browser, mut handler) = Browser::launch(builder.build()?).await?;
+
+    tokio::spawn(async move {
+        while let Some(event) = handler.next().await {
+            if let Err(e) = event {
+                tracing::error!("Browser event error: {}", e);
+            }
+        }
+    });
+
+    // 创建页面
+    let page = browser.new_page("about:blank").await?;
+    info!("✅ 浏览器已启动 / Browser launched");
+
+    // 执行检测
+    let detector = browser_detector::BrowserDetector::new().with_verbose(verbose);
+    info!("🔬 执行环境检测 / Performing environment detection...");
+    
+    let report = detector.detect_environment(&page).await?;
+
+    // 输出结果
+    println!("\n═══════════════════════════════════════════════");
+    println!("  浏览器环境检测报告 / Browser Environment Report");
+    println!("═══════════════════════════════════════════════\n");
+
+    println!("📊 总体评估 / Overall Assessment:");
+    println!("  风险等级 / Risk Level: {:?}", report.risk_level);
+    println!("  风险评分 / Risk Score: {}/100", report.risk_score);
+    println!();
+
+    println!("📋 检测详情 / Detection Details:");
+    for check in &report.checks {
+        let status = if check.passed { "✅" } else { "❌" };
+        println!("  {} {} (权重: {})", status, check.name, check.weight);
+        if verbose || !check.passed {
+            println!("     {}", check.details);
+        }
+    }
+    println!();
+
+    if !report.recommendations.is_empty() {
+        println!("💡 优化建议 / Recommendations:");
+        for (i, rec) in report.recommendations.iter().enumerate() {
+            println!("  {}. {}", i + 1, rec);
+        }
+        println!();
+    }
+
+    println!("🕐 检测时间 / Timestamp: {}", report.timestamp);
+    println!("═══════════════════════════════════════════════\n");
+
+    // 关闭浏览器
+    browser.close().await?;
+    info!("✅ 检测完成 / Detection completed");
 
     Ok(())
 }
