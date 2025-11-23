@@ -293,7 +293,7 @@ function Configure-MinGWPath {
     
     $msys2Root = $null
     try {
-        $msys2Root = scoop prefix msys2 -ErrorAction SilentlyContinue 2>$null
+        $msys2Root = scoop prefix msys2 -ErrorAction SilentlyContinue
     } catch {
         # 忽略错误，继续检查
     }
@@ -365,7 +365,7 @@ if ($envCheck.HasEnvironment) {
                 Write-Host "Build successful!" -ForegroundColor Green
                 Write-Host ""
                 
-                $exePath = ".\target\release\$script:projectName.exe"
+                $exePath = Join-Path -Path ".\target\release" -ChildPath "$script:projectName.exe"
                 if (Test-Path $exePath) {
                     Write-Host "是否立即运行程序？(Y/N)" -ForegroundColor Cyan
                     Write-Host "Run the program now? (Y/N)" -ForegroundColor Cyan
