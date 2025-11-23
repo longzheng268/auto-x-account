@@ -1,18 +1,18 @@
 //! X (Twitter) 账号注册模块
 //! X (Twitter) account registration module
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::network::CookieParam;
+use fake::faker::name::raw::*;
+use fake::locales::*;
+use fake::{Fake, Faker};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, error, warn};
-use fake::{Fake, Faker};
-use fake::faker::name::raw::*;
-use fake::locales::*;
-use serde::{Serialize, Deserialize};
+use tracing::{error, info, warn};
 
 use crate::config::Config;
 use crate::email::EmailHandler;
@@ -61,22 +61,47 @@ impl XRegistration {
         };
 
         let username = format!(
-            "user_{}_{}", 
-            Faker.fake::<String>().chars().filter(|c| c.is_alphanumeric()).take(8).collect::<String>(),
+            "user_{}_{}",
+            Faker
+                .fake::<String>()
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .take(8)
+                .collect::<String>(),
             chrono::Utc::now().timestamp()
         );
 
         let password = format!(
             "{}{}{}{}",
-            Faker.fake::<String>().chars().filter(|c| c.is_alphabetic()).take(4).collect::<String>(),
+            Faker
+                .fake::<String>()
+                .chars()
+                .filter(|c| c.is_alphabetic())
+                .take(4)
+                .collect::<String>(),
             rng.gen_range(1000..9999),
-            Faker.fake::<String>().chars().filter(|c| c.is_uppercase()).take(2).collect::<String>(),
+            Faker
+                .fake::<String>()
+                .chars()
+                .filter(|c| c.is_uppercase())
+                .take(2)
+                .collect::<String>(),
             "!@"
         );
 
         let months = vec![
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ];
 
         AccountInfo {
@@ -98,12 +123,12 @@ impl XRegistration {
     /// Register account
     pub async fn register_account(&self, email: String) -> Result<AccountInfo> {
         let mut account_info = self.generate_account_info(email.clone());
-        
+
         info!("开始注册账号: {}", account_info.email);
 
         // 配置浏览器
         let mut builder = BrowserConfig::builder();
-        
+
         if !self.config.browser.headless {
             builder = builder.with_head();
         }
@@ -135,21 +160,23 @@ impl XRegistration {
         let page = browser.new_page("about:blank").await?;
 
         // 设置视口大小
-        page.set_viewport(chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams {
-            width: self.config.browser.viewport.width as i64,
-            height: self.config.browser.viewport.height as i64,
-            device_scale_factor: 1.0,
-            mobile: false,
-            scale: None,
-            screen_width: Some(self.config.browser.viewport.width as i64),
-            screen_height: Some(self.config.browser.viewport.height as i64),
-            position_x: None,
-            position_y: None,
-            dont_set_visible_size: None,
-            screen_orientation: None,
-            viewport: None,
-            display_feature: None,
-        })
+        page.set_viewport(
+            chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams {
+                width: self.config.browser.viewport.width as i64,
+                height: self.config.browser.viewport.height as i64,
+                device_scale_factor: 1.0,
+                mobile: false,
+                scale: None,
+                screen_width: Some(self.config.browser.viewport.width as i64),
+                screen_height: Some(self.config.browser.viewport.height as i64),
+                position_x: None,
+                position_y: None,
+                dont_set_visible_size: None,
+                screen_orientation: None,
+                viewport: None,
+                display_feature: None,
+            },
+        )
         .await?;
 
         // 执行注册流程
@@ -178,13 +205,17 @@ impl XRegistration {
 
         // 这里需要实现具体的注册步骤
         // 由于 X/Twitter 的注册流程可能会变化，这里提供一个框架
-        
+
         info!("填写注册信息...");
         // TODO: 实现具体的表单填写逻辑
-        
+
         info!("等待验证码...");
         let timeout = Duration::from_secs(self.config.x_account.email_wait_timeout);
-        if let Some(code) = self.email_handler.wait_for_verification_code(&account_info.email, timeout).await {
+        if let Some(code) = self
+            .email_handler
+            .wait_for_verification_code(&account_info.email, timeout)
+            .await
+        {
             info!("收到验证码: {}", code);
             // TODO: 输入验证码
         } else {
@@ -205,9 +236,11 @@ impl XRegistration {
         let filename = format!("{}_{}.png", name, timestamp);
         let filepath = dir.join(filename);
 
-        let screenshot = page.screenshot(chromiumoxide::page::ScreenshotParams::builder().build()).await?;
+        let screenshot = page
+            .screenshot(chromiumoxide::page::ScreenshotParams::builder().build())
+            .await?;
         std::fs::write(&filepath, screenshot)?;
-        
+
         info!("已保存截图: {}", filepath.display());
         Ok(())
     }

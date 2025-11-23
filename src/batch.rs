@@ -1,17 +1,17 @@
 //! 批量注册模块
 //! Batch registration module
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tokio::time::{sleep, Duration};
-use tracing::{info, warn, error};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
+use tracing::{error, info, warn};
 
 use crate::config::Config;
 use crate::email::EmailHandler;
 use crate::email_provider::{BatchEmailManager, TempEmail};
-use crate::registration::{XRegistration, AccountInfo};
+use crate::registration::{AccountInfo, XRegistration};
 
 /// 批量注册任务状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,7 +73,7 @@ impl BatchRegistrationManager {
         use_existing_emails: bool,
     ) -> Result<String> {
         let task_id = format!("task_{}", chrono::Utc::now().timestamp_millis());
-        
+
         // 创建任务
         let task = BatchTask {
             id: task_id.clone(),
@@ -124,9 +124,9 @@ impl BatchRegistrationManager {
 
             let handle = tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
-                
+
                 info!("开始注册第 {}/{} 个账号", i + 1, count);
-                
+
                 match manager.register_single_account(use_existing_emails).await {
                     Ok(account) => {
                         info!("成功注册账号 {}/{}: {}", i + 1, count, account.username);
@@ -163,17 +163,12 @@ impl BatchRegistrationManager {
         // 获取或创建邮箱
         let email = if use_existing_email {
             let mut email_mgr = self.email_manager.lock().await;
-            email_mgr
-                .get_unused_email()
-                .context("没有可用的邮箱")?
+            email_mgr.get_unused_email().context("没有可用的邮箱")?
         } else {
             // 创建新邮箱
             let mut email_mgr = self.email_manager.lock().await;
             let emails = email_mgr.create_batch(1, false).await?;
-            emails
-                .into_iter()
-                .next()
-                .context("创建邮箱失败")?
+            emails.into_iter().next().context("创建邮箱失败")?
         };
 
         info!("使用邮箱: {}", email.address);
@@ -274,13 +269,9 @@ impl BatchRegistrationManager {
     }
 
     /// 导出账号到文件
-    pub async fn export_accounts(
-        &self,
-        filename: &str,
-        format: ExportFormat,
-    ) -> Result<()> {
+    pub async fn export_accounts(&self, filename: &str, format: ExportFormat) -> Result<()> {
         let accounts = self.accounts.lock().await;
-        
+
         use std::fs::File;
         use std::io::Write;
 

@@ -2,9 +2,9 @@
 //! Captcha handling module
 
 use anyhow::Result;
-use tracing::{info, warn};
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::{info, warn};
 
 /// 人机验证类型
 /// Captcha types
@@ -67,12 +67,8 @@ impl CaptchaHandler {
             CaptchaType::ReCaptchaV2 | CaptchaType::HCaptcha => {
                 self.handle_iframe_captcha(page, captcha_type).await
             }
-            CaptchaType::SliderCaptcha => {
-                self.handle_slider_captcha(page).await
-            }
-            CaptchaType::ClickCaptcha => {
-                self.handle_click_captcha(page).await
-            }
+            CaptchaType::SliderCaptcha => self.handle_slider_captcha(page).await,
+            CaptchaType::ClickCaptcha => self.handle_click_captcha(page).await,
             CaptchaType::Unknown => {
                 if self.manual_mode {
                     self.wait_for_manual_completion(page).await
@@ -95,16 +91,16 @@ impl CaptchaHandler {
             // TODO: 集成第三方验证服务 API
             // 这里需要根据具体服务的 API 来实现
             // 示例: 2captcha, anticaptcha 等
-            
+
             // 获取 site_key
             // let site_key = self.get_site_key(page).await?;
-            
+
             // 调用第三方服务
             // let token = self.solve_with_service(service, site_key).await?;
-            
+
             // 注入 token
             // self.inject_captcha_token(page, token).await?;
-            
+
             warn!("第三方验证服务功能待实现，切换到手动模式");
         }
 
@@ -126,12 +122,12 @@ impl CaptchaHandler {
         } else {
             // 简单的滑块模拟（可能不够智能）
             warn!("自动滑块验证可能不可靠，建议使用手动模式");
-            
+
             // TODO: 实现更智能的滑块验证
             // 1. 检测滑块元素
             // 2. 模拟人类滑动轨迹
             // 3. 随机速度和停顿
-            
+
             Ok(false)
         }
     }
@@ -176,18 +172,25 @@ impl CaptchaHandler {
     /// 检测页面中的验证码类型
     pub async fn detect_captcha_type(&self, page: &chromiumoxide::Page) -> Option<CaptchaType> {
         // 检测 reCAPTCHA
-        if self.check_element_exists(page, "iframe[src*='recaptcha']").await {
+        if self
+            .check_element_exists(page, "iframe[src*='recaptcha']")
+            .await
+        {
             return Some(CaptchaType::ReCaptchaV2);
         }
 
         // 检测 hCaptcha
-        if self.check_element_exists(page, "iframe[src*='hcaptcha']").await {
+        if self
+            .check_element_exists(page, "iframe[src*='hcaptcha']")
+            .await
+        {
             return Some(CaptchaType::HCaptcha);
         }
 
         // 检测滑块
-        if self.check_element_exists(page, "[class*='slider']").await 
-            || self.check_element_exists(page, "[class*='slide']").await {
+        if self.check_element_exists(page, "[class*='slider']").await
+            || self.check_element_exists(page, "[class*='slide']").await
+        {
             return Some(CaptchaType::SliderCaptcha);
         }
 
@@ -223,11 +226,11 @@ pub mod human_behavior {
             // 使用贝塞尔曲线模拟自然的鼠标移动
             let x = start.0 as f64 + (end.0 - start.0) as f64 * t;
             let y = start.1 as f64 + (end.1 - start.1) as f64 * t;
-            
+
             // 添加一些随机抖动
             let noise_x = rand::thread_rng().gen_range(-2..3);
             let noise_y = rand::thread_rng().gen_range(-2..3);
-            
+
             path.push(((x as i32 + noise_x), (y as i32 + noise_y)));
         }
 

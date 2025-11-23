@@ -1,30 +1,30 @@
 //! X 账号自动注册系统 - 主程序
 //! X Account Auto Registration System - Main Program
-//! 
+//!
 //! 支持 SMTP 邮箱验证、代理访问、多语言界面、批量注册
 //! Supports SMTP email verification, proxy access, multi-language UI, batch registration
 
+mod batch;
+mod captcha;
 mod config;
 mod email;
+mod email_provider;
+mod gui;
 mod i18n;
 mod registration;
-mod captcha;
-mod email_provider;
-mod batch;
-mod gui;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use tracing::{info, error};
+use tracing::{error, info};
 use tracing_subscriber;
 
+use batch::{BatchRegistrationConfig, BatchRegistrationManager};
 use config::Config;
 use email::EmailService;
+use email_provider::{BatchEmailManager, EmailProvider, EmailProviderConfig};
 use i18n::I18n;
 use registration::XRegistration;
-use email_provider::{EmailProviderConfig, EmailProvider, BatchEmailManager};
-use batch::{BatchRegistrationManager, BatchRegistrationConfig};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -45,7 +45,7 @@ struct Args {
 enum Commands {
     /// 启动 GUI 界面 / Launch GUI interface
     Gui,
-    
+
     /// 注册单个账号 / Register single account
     Register {
         /// 注册邮箱地址 / Email address for registration
@@ -56,7 +56,7 @@ enum Commands {
         #[arg(short, long)]
         proxy: Option<String>,
     },
-    
+
     /// 批量注册账号 / Batch register accounts
     Batch {
         /// 要注册的账号数量 / Number of accounts to register
@@ -71,7 +71,7 @@ enum Commands {
         #[arg(long)]
         use_existing_emails: bool,
     },
-    
+
     /// 批量创建邮箱 / Batch create emails
     CreateEmails {
         /// 要创建的邮箱数量 / Number of emails to create
@@ -86,7 +86,7 @@ enum Commands {
         #[arg(long)]
         verify: bool,
     },
-    
+
     /// 导出账号 / Export accounts
     Export {
         /// 导出文件路径 / Export file path
@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
         Commands::Gui => {
             gui::run_gui()?;
         }
-        
+
         Commands::Register { email, proxy } => {
             if let Some(proxy_url) = proxy {
                 config.proxy.enable = true;
@@ -158,15 +158,23 @@ async fn main() -> Result<()> {
 
             run_single_registration(config, email, &i18n).await?;
         }
-        
-        Commands::Batch { count, concurrent, use_existing_emails } => {
+
+        Commands::Batch {
+            count,
+            concurrent,
+            use_existing_emails,
+        } => {
             run_batch_registration(config, count, concurrent, use_existing_emails, &i18n).await?;
         }
-        
-        Commands::CreateEmails { count, output, verify } => {
+
+        Commands::CreateEmails {
+            count,
+            output,
+            verify,
+        } => {
             run_create_emails(config, count, output, verify, &i18n).await?;
         }
-        
+
         Commands::Export { output, format } => {
             run_export_accounts(output, format, &i18n).await?;
         }
@@ -183,7 +191,12 @@ async fn run_single_registration(config: Config, email: String, i18n: &I18n) -> 
     if config.smtp.enable {
         info!("{}", i18n.t("smtp_starting"));
         email_service.start().await?;
-        info!("{}: {}:{}", i18n.t("smtp_started"), config.smtp.host, config.smtp.port);
+        info!(
+            "{}: {}:{}",
+            i18n.t("smtp_started"),
+            config.smtp.host,
+            config.smtp.port
+        );
     }
 
     // 显示代理状态
@@ -218,13 +231,13 @@ async fn run_single_registration(config: Config, email: String, i18n: &I18n) -> 
 
     // 执行注册
     info!("{}: {}", i18n.t("registration_start"), email);
-    
+
     match registration.register_account(email).await {
         Ok(account) => {
             info!("{}", i18n.t("registration_success"));
             info!("用户名 / Username: {}", account.username);
             info!("邮箱 / Email: {}", account.email);
-            
+
             // 保存账号信息
             save_account_info(&config, &account)?;
         }
@@ -274,11 +287,8 @@ async fn run_batch_registration(
     }
 
     // 创建批量注册管理器
-    let batch_manager = BatchRegistrationManager::new(
-        config.clone(),
-        email_service.get_handler(),
-        email_manager,
-    );
+    let batch_manager =
+        BatchRegistrationManager::new(config.clone(), email_service.get_handler(), email_manager);
 
     // 开始批量注册
     let task_id = batch_manager
@@ -290,7 +300,7 @@ async fn run_batch_registration(
     // 等待任务完成
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        
+
         if let Some(stats) = batch_manager.get_task_stats(&task_id).await {
             info!(
                 "进度: {:.1}% ({}/{}) - 成功: {}, 失败: {}",
@@ -360,18 +370,18 @@ async fn run_create_emails(
 
 async fn run_export_accounts(output: String, format: String, i18n: &I18n) -> Result<()> {
     info!("导出账号到文件: {}", output);
-    
+
     // TODO: 从存储中加载账号并导出
     info!("导出功能待完善");
-    
+
     Ok(())
 }
 
 fn save_account_info(config: &Config, account: &registration::AccountInfo) -> Result<()> {
     use std::fs;
-    
+
     let accounts_file = PathBuf::from(&config.output.accounts_file);
-    
+
     let mut accounts = if accounts_file.exists() {
         let content = fs::read_to_string(&accounts_file)?;
         serde_json::from_str::<Vec<registration::AccountInfo>>(&content)
@@ -379,13 +389,16 @@ fn save_account_info(config: &Config, account: &registration::AccountInfo) -> Re
     } else {
         Vec::new()
     };
-    
+
     accounts.push(account.clone());
-    
+
     let content = serde_json::to_string_pretty(&accounts)?;
     fs::write(&accounts_file, content)?;
-    
-    info!("账号信息已保存到 / Account info saved to: {}", accounts_file.display());
-    
+
+    info!(
+        "账号信息已保存到 / Account info saved to: {}",
+        accounts_file.display()
+    );
+
     Ok(())
 }

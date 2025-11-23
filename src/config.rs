@@ -136,7 +136,7 @@ impl Config {
     fn detect_system_proxy(&self) -> Option<String> {
         // 检查环境变量
         // 按优先级检查: https_proxy > http_proxy > all_proxy
-        
+
         // 1. 检查 HTTPS_PROXY / https_proxy
         if let Ok(proxy) = std::env::var("HTTPS_PROXY") {
             if !proxy.is_empty() {
@@ -201,7 +201,7 @@ impl Config {
     #[cfg(target_os = "windows")]
     fn detect_windows_proxy(&self) -> Option<String> {
         use std::process::Command;
-        
+
         // 尝试从 Windows 注册表读取代理设置
         // 这里简化处理，实际可以使用 winreg crate
         if let Ok(output) = Command::new("reg")
@@ -232,7 +232,7 @@ impl Config {
     #[cfg(target_os = "macos")]
     fn detect_macos_proxy(&self) -> Option<String> {
         use std::process::Command;
-        
+
         // 使用 networksetup 命令获取代理设置
         if let Ok(output) = Command::new("networksetup")
             .args(&["-getwebproxy", "Wi-Fi"])
@@ -264,7 +264,7 @@ impl Config {
     #[cfg(target_os = "linux")]
     fn detect_linux_proxy(&self) -> Option<String> {
         use std::process::Command;
-        
+
         // 尝试从 gsettings 读取（GNOME）
         if let Ok(output) = Command::new("gsettings")
             .args(&["get", "org.gnome.system.proxy", "mode"])
@@ -366,4 +366,3 @@ impl Default for Config {
         }
     }
 }
-
