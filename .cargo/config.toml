@@ -37,7 +37,7 @@ rustflags = [
 [build]
 # 默认使用所有可用的 CPU 核心进行并行编译
 # Use all available CPU cores for parallel compilation by default
-jobs = 0
+# jobs = 0  # 在新版 Cargo 中不再支持 0 值，已注释掉，Cargo 会自动使用所有可用核心
 
 # 增量编译配置（开发时加快编译速度）
 # Incremental compilation for faster development builds

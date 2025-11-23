@@ -35,6 +35,10 @@ egui_extras = { version = "0.25", features = ["image"] }
 rfd = "0.13"
 image = "0.24"
 
+# Windows 平台依赖 - 修复 winapi 功能特性缺失问题
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "windef"] }
+
 [profile.release]
 opt-level = 3
 lto = true
