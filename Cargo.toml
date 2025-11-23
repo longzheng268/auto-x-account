@@ -2,9 +2,14 @@
 name = "auto-x-account"
 version = "0.1.0"
 edition = "2021"
-authors = ["Auto X Account Team"]
-description = "自动化 X (Twitter) 账号注册系统 - 支持 SMTP 邮箱验证和代理"
-license = "MIT"
+authors = ["longzheng268", "Auto X Account Team"]
+description = "专有商业软件 - 自动化 X (Twitter) 账号注册系统 (Proprietary Commercial Software)"
+license = "Proprietary"
+readme = "README.md"
+homepage = "https://github.com/longzheng268/auto-x-account"
+repository = "https://github.com/longzheng268/auto-x-account"
+keywords = ["proprietary", "commercial", "twitter", "automation"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }

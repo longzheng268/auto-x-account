@@ -163,18 +163,25 @@ echo ""
 echo -e "${CYAN}[4/6] 清理应用程序数据...${NC}"
 echo -e "${CYAN}[4/6] Cleaning application data...${NC}"
 
-app_data_dirs=(
-    "$HOME/.local/share/auto-x-account"
-    "$HOME/.cache/auto-x-account"
-    "$HOME/.config/auto-x-account"
-)
+read -p "是否清理应用程序数据？(Y/N) / Clean application data? (Y/N): " -n 1 -r
+echo ""
 
-for dir in "${app_data_dirs[@]}"; do
-    if [ -d "$dir" ]; then
-        rm -rf "$dir"
-        echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
-    fi
-done
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    app_data_dirs=(
+        "$HOME/.local/share/auto-x-account"
+        "$HOME/.cache/auto-x-account"
+        "$HOME/.config/auto-x-account"
+    )
+    
+    for dir in "${app_data_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
+        fi
+    done
+else
+    echo -e "  ${NC}保留应用程序数据${NC}"
+fi
 
 echo ""
 
@@ -182,19 +189,26 @@ echo ""
 echo -e "${CYAN}[5/6] 清理临时文件...${NC}"
 echo -e "${CYAN}[5/6] Cleaning temporary files...${NC}"
 
-temp_dirs=(
-    "/tmp/auto-x-account*"
-    "$HOME/.auto-x-account"
-)
+read -p "是否清理临时文件？(Y/N) / Clean temporary files? (Y/N): " -n 1 -r
+echo ""
 
-for pattern in "${temp_dirs[@]}"; do
-    for dir in $pattern; do
-        if [ -e "$dir" ]; then
-            rm -rf "$dir"
-            echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
-        fi
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    temp_dirs=(
+        "/tmp/auto-x-account*"
+        "$HOME/.auto-x-account"
+    )
+    
+    for pattern in "${temp_dirs[@]}"; do
+        for dir in $pattern; do
+            if [ -e "$dir" ]; then
+                rm -rf "$dir"
+                echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
+            fi
+        done
     done
-done
+else
+    echo -e "  ${NC}保留临时文件${NC}"
+fi
 
 echo ""
 
@@ -202,16 +216,23 @@ echo ""
 echo -e "${CYAN}[6/6] 清理缓存...${NC}"
 echo -e "${CYAN}[6/6] Cleaning cache...${NC}"
 
-cache_dirs=(
-    "$HOME/.cache/chromiumoxide"
-)
+read -p "是否清理缓存？(Y/N) / Clean cache? (Y/N): " -n 1 -r
+echo ""
 
-for dir in "${cache_dirs[@]}"; do
-    if [ -d "$dir" ]; then
-        rm -rf "$dir"
-        echo -e "  ${GREEN}✓ 已删除缓存: $dir${NC}"
-    fi
-done
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    cache_dirs=(
+        "$HOME/.cache/chromiumoxide"
+    )
+    
+    for dir in "${cache_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo -e "  ${GREEN}✓ 已删除缓存: $dir${NC}"
+        fi
+    done
+else
+    echo -e "  ${NC}保留缓存${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}================================================${NC}"

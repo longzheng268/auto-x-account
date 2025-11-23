@@ -102,13 +102,28 @@ if command -v brew &> /dev/null; then
     echo ""
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        packages=("git" "pkg-config" "google-chrome")
+        # 定义包及其描述
+        declare -A packages=(
+            ["git"]="Git 版本控制 / Git version control"
+            ["pkg-config"]="包配置工具 / Package config tool"
+            ["google-chrome"]="Google Chrome 浏览器 / Google Chrome browser"
+        )
         
-        for pkg in "${packages[@]}"; do
+        for pkg in "${!packages[@]}"; do
             if brew list "$pkg" &> /dev/null || brew list --cask "$pkg" &> /dev/null; then
-                echo -e "  ${YELLOW}正在卸载: $pkg${NC}"
-                brew uninstall "$pkg" --ignore-dependencies 2>/dev/null || brew uninstall --cask "$pkg" --ignore-dependencies 2>/dev/null || true
-                echo -e "  ${GREEN}✓ 已卸载: $pkg${NC}"
+                echo ""
+                echo -e "  ${YELLOW}发现包: $pkg - ${packages[$pkg]}${NC}"
+                echo -e "  ${YELLOW}Found package: $pkg - ${packages[$pkg]}${NC}"
+                read -p "  是否卸载此包？(Y/N) / Uninstall this package? (Y/N): " -n 1 -r
+                echo ""
+                
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    echo -e "  ${YELLOW}正在卸载: $pkg${NC}"
+                    brew uninstall "$pkg" --ignore-dependencies 2>/dev/null || brew uninstall --cask "$pkg" --ignore-dependencies 2>/dev/null || true
+                    echo -e "  ${GREEN}✓ 已卸载: $pkg${NC}"
+                else
+                    echo -e "  ${NC}跳过: $pkg${NC}"
+                fi
             fi
         done
         
@@ -145,18 +160,25 @@ echo ""
 echo -e "${CYAN}[4/6] 清理应用程序数据...${NC}"
 echo -e "${CYAN}[4/6] Cleaning application data...${NC}"
 
-app_data_dirs=(
-    "$HOME/Library/Application Support/auto-x-account"
-    "$HOME/Library/Caches/auto-x-account"
-    "$HOME/Library/Logs/auto-x-account"
-)
+read -p "是否清理应用程序数据？(Y/N) / Clean application data? (Y/N): " -n 1 -r
+echo ""
 
-for dir in "${app_data_dirs[@]}"; do
-    if [ -d "$dir" ]; then
-        rm -rf "$dir"
-        echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
-    fi
-done
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    app_data_dirs=(
+        "$HOME/Library/Application Support/auto-x-account"
+        "$HOME/Library/Caches/auto-x-account"
+        "$HOME/Library/Logs/auto-x-account"
+    )
+    
+    for dir in "${app_data_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
+        fi
+    done
+else
+    echo -e "  ${NC}保留应用程序数据${NC}"
+fi
 
 echo ""
 
@@ -164,19 +186,26 @@ echo ""
 echo -e "${CYAN}[5/6] 清理临时文件...${NC}"
 echo -e "${CYAN}[5/6] Cleaning temporary files...${NC}"
 
-temp_dirs=(
-    "/tmp/auto-x-account*"
-    "$HOME/.auto-x-account"
-)
+read -p "是否清理临时文件？(Y/N) / Clean temporary files? (Y/N): " -n 1 -r
+echo ""
 
-for pattern in "${temp_dirs[@]}"; do
-    for dir in $pattern; do
-        if [ -e "$dir" ]; then
-            rm -rf "$dir"
-            echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
-        fi
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    temp_dirs=(
+        "/tmp/auto-x-account*"
+        "$HOME/.auto-x-account"
+    )
+    
+    for pattern in "${temp_dirs[@]}"; do
+        for dir in $pattern; do
+            if [ -e "$dir" ]; then
+                rm -rf "$dir"
+                echo -e "  ${GREEN}✓ 已删除: $dir${NC}"
+            fi
+        done
     done
-done
+else
+    echo -e "  ${NC}保留临时文件${NC}"
+fi
 
 echo ""
 
@@ -184,16 +213,23 @@ echo ""
 echo -e "${CYAN}[6/6] 清理缓存...${NC}"
 echo -e "${CYAN}[6/6] Cleaning cache...${NC}"
 
-cache_dirs=(
-    "$HOME/Library/Caches/chromiumoxide"
-)
+read -p "是否清理缓存？(Y/N) / Clean cache? (Y/N): " -n 1 -r
+echo ""
 
-for dir in "${cache_dirs[@]}"; do
-    if [ -d "$dir" ]; then
-        rm -rf "$dir"
-        echo -e "  ${GREEN}✓ 已删除缓存: $dir${NC}"
-    fi
-done
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    cache_dirs=(
+        "$HOME/Library/Caches/chromiumoxide"
+    )
+    
+    for dir in "${cache_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo -e "  ${GREEN}✓ 已删除缓存: $dir${NC}"
+        fi
+    done
+else
+    echo -e "  ${NC}保留缓存${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}================================================${NC}"

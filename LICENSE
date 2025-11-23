@@ -1,21 +1,317 @@
-MIT License
+专有软件许可协议 / PROPRIETARY SOFTWARE LICENSE AGREEMENT
 
-Copyright (c) 2024 Auto X Account Team
+版权所有 © 2024 longzheng268 及 Auto X Account Team 保留所有权利
+Copyright © 2024 longzheng268 and Auto X Account Team. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+================================================================================
+重要法律声明 / CRITICAL LEGAL NOTICE
+================================================================================
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+警告：本软件是受严格版权保护的专有商业软件
+WARNING: THIS SOFTWARE IS STRICTLY PROTECTED PROPRIETARY COMMERCIAL SOFTWARE
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+本软件受以下法律保护：
+This software is protected under:
+- 中华人民共和国著作权法 / Copyright Law of the People's Republic of China
+- 中华人民共和国刑法第217条、第218条（侵犯著作权罪）
+- 美国版权法 (17 U.S.C.) / United States Copyright Law
+- 《伯尔尼公约》/ Berne Convention
+- 《世界知识产权组织版权条约》/ WIPO Copyright Treaty
+- 其他适用的国际版权条约 / Other applicable international copyright treaties
+
+未经授权的使用、复制、分发、修改本软件属于严重违法行为，将面临：
+Unauthorized use, copying, distribution, or modification is a serious 
+violation of law and will result in:
+
+1. 刑事责任：最高判处 7 年有期徒刑，并处罚金
+   Criminal Liability: Up to 7 years imprisonment and fines
+
+2. 民事赔偿：最低人民币 100 万元或实际损失的 5 倍（取较高者）
+   Civil Damages: Minimum RMB 1,000,000 or 5x actual damages (whichever higher)
+
+3. 永久禁令：禁止使用任何本公司产品
+   Permanent Injunction: Ban from using any products by the licensor
+
+4. 承担全部法律费用：包括律师费、调查费、诉讼费等
+   Full Legal Costs: Including attorney fees, investigation costs, court fees
+
+我们将对所有侵权行为进行追踪、取证并采取法律行动。
+We actively track, document, and prosecute all violations.
+
+================================================================================
+许可授予 / LICENSE GRANT
+================================================================================
+
+本许可协议（"协议"）是您（"被许可方"、"用户"或"您"）与软件版权所有者
+longzheng268（"许可方"、"版权方"或"我方"）之间具有法律约束力的协议。
+
+通过下载、安装、复制或以任何方式使用本软件，您即明确表示同意受本协议的
+约束。如果您不同意，必须立即停止使用并删除本软件的所有副本。
+
+1. 严格的授权范围 / STRICT SCOPE OF LICENSE
+   
+   1.1 单用户许可
+       - 一份许可证仅授权一(1)个自然人在一(1)台设备上使用
+       - 不得在多台设备上同时或交替使用
+       - 不得与他人共享账号或许可证
+       - 不得在虚拟机、容器或云环境中使用（除非购买企业许可）
+   
+   1.2 使用限制
+       - 仅限个人非商业用途（商业用途需购买商业许可证）
+       - 不得用于任何盈利性活动
+       - 不得提供给第三方使用
+       - 不得作为其他产品或服务的组成部分
+   
+   1.3 地域限制
+       - 许可证按购买地区授权，不得跨区域使用
+       - 未经授权不得在其他国家或地区使用
+
+2. 严格的禁止条款 / STRICT PROHIBITIONS
+   
+   以下行为严格禁止，违反者将承担全部法律责任：
+   
+   2.1 禁止复制和分发
+       ✗ 不得以任何形式复制本软件或其任何部分
+       ✗ 不得通过互联网、局域网或任何方式分发
+       ✗ 不得上传至任何公开或私有的代码库、云存储
+       ✗ 不得制作备份副本（除非用于正常使用的临时缓存）
+       ✗ 不得创建镜像站点或提供下载服务
+   
+   2.2 禁止反向工程
+       ✗ 严禁反向工程、反编译、反汇编本软件
+       ✗ 严禁使用任何工具、方法提取、查看或分析源代码
+       ✗ 严禁尝试破解、绕过或禁用许可证验证机制
+       ✗ 严禁分析、研究或重现软件的算法、逻辑或实现方式
+       ✗ 严禁创建兼容或类似的软件产品
+   
+   2.3 禁止修改和衍生
+       ✗ 严禁修改、改编或翻译本软件的任何部分
+       ✗ 严禁创建基于本软件的衍生作品
+       ✗ 严禁将本软件与其他软件合并或集成
+       ✗ 严禁删除、修改或隐藏版权声明、商标或其他标识
+   
+   2.4 禁止商业利用
+       ✗ 严禁出售、转售、出租、出借本软件
+       ✗ 严禁提供基于本软件的商业服务（SaaS、托管服务等）
+       ✗ 严禁将本软件用于盈利性项目或业务
+       ✗ 严禁以本软件进行收费培训或咨询
+   
+   2.5 禁止转让和再许可
+       ✗ 严禁转让许可证给任何第三方
+       ✗ 严禁授予他人使用本软件的权利
+       ✗ 严禁共享账号、密码或激活码
+   
+   2.6 禁止规避技术措施
+       ✗ 严禁破解、移除或绕过任何技术保护措施
+       ✗ 严禁使用破解工具、注册机、激活器等非法工具
+       ✗ 严禁分享破解方法、教程或工具
+
+3. 知识产权和所有权 / INTELLECTUAL PROPERTY & OWNERSHIP
+   
+   3.1 完全所有权
+       - 本软件的全部源代码、目标代码、文档、界面、图形、算法、
+         商业秘密及所有相关知识产权归许可方独家所有
+       - 您不获得本软件的任何所有权
+       - 本协议仅授予使用许可，不转让任何权利
+   
+   3.2 商标和品牌
+       - "Auto X Account"、相关标识和商标为许可方所有
+       - 未经书面许可，不得使用任何商标或品牌元素
+   
+   3.3 保留权利
+       - 所有未在本协议中明确授予的权利均由许可方保留
+       - 许可方保留随时修改、更新或终止软件的权利
+
+4. 版权保护和技术措施 / COPYRIGHT PROTECTION & TECHNICAL MEASURES
+   
+   4.1 版权标识
+       - 所有副本必须保留完整的版权声明
+       - 不得删除或修改软件中的版权信息
+   
+   4.2 技术保护措施
+       - 本软件包含技术保护措施（TPM）
+       - 根据《世界知识产权组织版权条约》第11条，
+         规避技术保护措施是违法行为
+       - 我们使用加密、许可证验证、指纹识别等技术
+   
+   4.3 监控和追踪
+       - 我们保留监控软件使用情况的权利
+       - 可能收集使用数据以防止滥用
+       - 检测到违规使用将立即采取法律行动
+
+5. 严格的法律追究 / STRICT LEGAL ENFORCEMENT
+   
+   5.1 侵权行为的认定
+       以下行为构成侵权：
+       - 未购买许可证而使用本软件
+       - 使用破解版、盗版或未授权版本
+       - 违反本协议第2条任何禁止条款
+       - 超出授权范围使用
+       - 协助或教唆他人侵权
+   
+   5.2 民事责任
+       对于每次侵权行为，侵权方需承担：
+       - 法定赔偿金：人民币 100 万元 - 500 万元
+       - 或实际损失 + 侵权获利的 5 倍赔偿
+       - 律师费：人民币 20 万元 - 100 万元
+       - 调查取证费用：实际发生的全部费用
+       - 诉讼费用、保全费用等全部司法费用
+       - 商誉损失赔偿：根据实际情况确定
+   
+   5.3 刑事责任
+       根据《中华人民共和国刑法》第217条、第218条：
+       - 以营利为目的，未经许可复制发行软件，
+         违法所得数额较大或情节严重的，
+         处三年以下有期徒刑，并处或者单处罚金
+       - 违法所得数额巨大或情节特别严重的，
+         处三年以上十年以下有期徒刑，并处罚金
+   
+   5.4 证据保全
+       - 我们将采用区块链、数字水印等技术固定证据
+       - 将联合执法机关、第三方机构进行调查取证
+       - 保留所有使用日志、访问记录作为证据
+   
+   5.5 连带责任
+       - 企业用户：企业及直接责任人共同承担责任
+       - 分发者：提供下载、分享侵权软件者承担连带责任
+       - 教唆者：教授破解方法、提供破解工具者承担连带责任
+
+6. 终止和后果 / TERMINATION & CONSEQUENCES
+   
+   6.1 终止条件
+       发生以下情况，许可自动终止：
+       - 违反本协议任何条款
+       - 超过许可期限未续费
+       - 许可方发现欺诈或违法行为
+       - 软件被用于非法目的
+   
+   6.2 终止后义务
+       许可终止后，您必须立即：
+       - 停止使用本软件的所有功能
+       - 删除所有副本（包括备份）
+       - 销毁所有相关文档和材料
+       - 提供删除证明（如要求）
+   
+   6.3 终止后责任
+       - 许可终止不免除您的赔偿责任
+       - 已发生的侵权行为仍需承担法律责任
+
+7. 审计和检查权利 / AUDIT & INSPECTION RIGHTS
+   
+   7.1 审计权
+       - 许可方有权随时审计您对软件的使用情况
+       - 您必须配合审计，提供必要的信息和访问权限
+       - 拒绝审计视为违约
+   
+   7.2 发现违规的处理
+       - 发现违规使用，除终止许可外，
+       - 还需支付未付许可费的 10 倍罚款
+       - 并承担审计费用
+
+8. 出口管制 / EXPORT CONTROL
+   
+   本软件可能受出口管制法律约束：
+   - 不得出口到受制裁国家或地区
+   - 不得提供给被禁止的实体或个人
+   - 必须遵守所有适用的出口管制法规
+
+9. 管辖法律和争议解决 / GOVERNING LAW & DISPUTE RESOLUTION
+   
+   9.1 适用法律
+       - 本协议受中华人民共和国法律管辖和解释
+       - 法律冲突规则不适用
+   
+   9.2 管辖法院
+       - 任何争议应提交至版权方所在地人民法院专属管辖
+       - 版权方有权选择在侵权行为地或结果发生地起诉
+   
+   9.3 举证责任
+       - 用户需证明其合法获得和使用许可
+       - 无法提供有效许可证明的，推定为侵权
+
+10. 免责声明 / DISCLAIMER OF WARRANTY
+    
+    在法律允许的最大范围内：
+    - 本软件"按原样"提供，不含任何明示或暗示的保证
+    - 不保证软件无错误、无中断或满足特定需求
+    - 不对使用软件导致的任何后果承担责任
+    
+    THE SOFTWARE IS PROVIDED "AS IS" WITHOUT ANY WARRANTIES.
+
+11. 责任限制 / LIMITATION OF LIABILITY
+    
+    在任何情况下，许可方不对以下损失承担责任：
+    - 利润损失、数据丢失、业务中断等间接损失
+    - 即使已被告知可能发生此类损失
+    
+    但本条款不限制许可方追究侵权责任的权利。
+
+12. 完整协议和修改 / ENTIRE AGREEMENT & AMENDMENTS
+    
+    12.1 完整性
+        - 本协议构成双方的完整协议
+        - 取代所有先前的口头或书面沟通
+    
+    12.2 修改权
+        - 许可方保留随时修改本协议的权利
+        - 修改后的协议将发布在官方网站
+        - 继续使用软件即表示接受修改后的协议
+
+13. 可分割性 / SEVERABILITY
+    
+    如本协议任何条款被认定无效，不影响其他条款的效力。
+
+14. 不弃权 / NO WAIVER
+    
+    许可方未行使任何权利不构成对该权利的放弃。
+
+================================================================================
+证据和报告 / EVIDENCE & REPORTING
+================================================================================
+
+如发现侵权行为，请立即报告：
+If you discover any infringement, please report immediately:
+
+- 举报邮箱 / Report Email: [将通过 GitHub 提供]
+- GitHub Issues: https://github.com/longzheng268/auto-x-account/issues
+- 举报奖励：经查证属实，给予人民币 1000-10000 元奖励
+
+We offer rewards (RMB 1,000-10,000) for verified reports of infringement.
+
+================================================================================
+购买许可证 / PURCHASE LICENSE
+================================================================================
+
+商业许可证咨询 / Commercial License Inquiry:
+- GitHub: https://github.com/longzheng268/auto-x-account
+- Issues: https://github.com/longzheng268/auto-x-account/issues
+
+================================================================================
+声明和同意 / ACKNOWLEDGMENT & CONSENT
+================================================================================
+
+使用本软件即表示您：
+By using this software, you acknowledge that you:
+
+✓ 已完整阅读并理解本协议的所有条款
+  Have read and understand all terms of this agreement
+
+✓ 同意受本协议的法律约束
+  Agree to be legally bound by this agreement
+
+✓ 理解违反本协议的严重后果
+  Understand the serious consequences of violating this agreement
+
+✓ 承诺合法使用本软件
+  Promise to use the software legally
+
+✓ 接受许可方的监督和审计
+  Accept supervision and auditing by the licensor
+
+如果您不同意本协议的任何条款，请立即停止使用并删除本软件。
+If you do not agree to any terms, immediately stop using and delete the software.
+
+================================================================================
+
+最后更新 / Last Updated: 2024-11-23
+版本 / Version: 2.0 (Strict Commercial License)

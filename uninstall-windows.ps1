@@ -107,36 +107,59 @@ if (Get-Command scoop -ErrorAction SilentlyContinue) {
     
     if ($uninstallScoop -eq "Y" -or $uninstallScoop -eq "y") {
         # 包含 MSYS2（用于 GNU 工具链）
-        $packages = @("rustup", "git", "chromium", "googlechrome", "msys2")
-        
-        foreach ($pkg in $packages) {
-            if (scoop list | Select-String -Pattern $pkg -Quiet) {
-                Write-Host "  正在卸载: $pkg" -ForegroundColor Yellow
-                scoop uninstall $pkg
-                Write-Host "  ✓ 已卸载: $pkg" -ForegroundColor Green
-            }
-        }
-        
-        # 清理 MSYS2 目录（如果存在）
-        Write-Host "  正在清理 MSYS2..." -ForegroundColor Yellow
-        $msys2Dirs = @(
-            "$env:USERPROFILE\scoop\apps\msys2",
-            "$env:USERPROFILE\AppData\Local\msys2"
+        $packages = @(
+            @{Name="rustup"; Desc="Rust 工具链管理器 / Rust toolchain manager"},
+            @{Name="git"; Desc="Git 版本控制 / Git version control"},
+            @{Name="chromium"; Desc="Chromium 浏览器 / Chromium browser"},
+            @{Name="googlechrome"; Desc="Google Chrome 浏览器 / Google Chrome browser"},
+            @{Name="msys2"; Desc="MSYS2 (GNU 工具链) / MSYS2 (GNU toolchain)"}
         )
         
-        foreach ($dir in $msys2Dirs) {
-            if (Test-Path $dir) {
-                try {
-                    Remove-Item -Recurse -Force $dir -ErrorAction Stop
-                    Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
-                } catch {
-                    Write-Host "  ⚠ 无法删除: $dir - $_" -ForegroundColor Yellow
-                    Write-Host "    提示：请手动删除或在没有程序使用时重试" -ForegroundColor Gray
+        foreach ($pkg in $packages) {
+            if (scoop list | Select-String -Pattern $pkg.Name -Quiet) {
+                Write-Host ""
+                Write-Host "  发现包: $($pkg.Name) - $($pkg.Desc)" -ForegroundColor Yellow
+                Write-Host "  Found package: $($pkg.Name) - $($pkg.Desc)" -ForegroundColor Yellow
+                $confirmPkg = Read-Host "  是否卸载此包？(Y/N) / Uninstall this package? (Y/N)"
+                
+                if ($confirmPkg -eq "Y" -or $confirmPkg -eq "y") {
+                    Write-Host "  正在卸载: $($pkg.Name)" -ForegroundColor Yellow
+                    scoop uninstall $pkg.Name
+                    Write-Host "  ✓ 已卸载: $($pkg.Name)" -ForegroundColor Green
+                } else {
+                    Write-Host "  跳过: $($pkg.Name)" -ForegroundColor Gray
                 }
             }
         }
         
+        # 清理 MSYS2 目录（如果存在）
+        Write-Host ""
+        $cleanMSYS2 = Read-Host "是否清理 MSYS2 目录？(Y/N) / Clean MSYS2 directories? (Y/N)"
+        
+        if ($cleanMSYS2 -eq "Y" -or $cleanMSYS2 -eq "y") {
+            Write-Host "  正在清理 MSYS2..." -ForegroundColor Yellow
+            $msys2Dirs = @(
+                "$env:USERPROFILE\scoop\apps\msys2",
+                "$env:USERPROFILE\AppData\Local\msys2"
+            )
+            
+            foreach ($dir in $msys2Dirs) {
+                if (Test-Path $dir) {
+                    try {
+                        Remove-Item -Recurse -Force $dir -ErrorAction Stop
+                        Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
+                    } catch {
+                        Write-Host "  ⚠ 无法删除: $dir - $_" -ForegroundColor Yellow
+                        Write-Host "    提示：请手动删除或在没有程序使用时重试" -ForegroundColor Gray
+                    }
+                }
+            }
+        } else {
+            Write-Host "  保留 MSYS2 目录" -ForegroundColor Gray
+        }
+        
         # 询问是否卸载 Scoop 本身
+        Write-Host ""
         $uninstallScoopItself = Read-Host "是否卸载 Scoop 本身？(Y/N) / Uninstall Scoop itself? (Y/N)"
         if ($uninstallScoopItself -eq "Y" -or $uninstallScoopItself -eq "y") {
             scoop uninstall scoop
@@ -184,16 +207,22 @@ Write-Host ""
 Write-Host "[5/6] 清理临时文件..." -ForegroundColor Cyan
 Write-Host "[5/6] Cleaning temporary files..." -ForegroundColor Cyan
 
-$tempDirs = @(
-    "$env:TEMP\auto-x-account*",
-    "$env:LOCALAPPDATA\auto-x-account"
-)
+$cleanTemp = Read-Host "是否清理临时文件？(Y/N) / Clean temporary files? (Y/N)"
 
-foreach ($dir in $tempDirs) {
-    if (Test-Path $dir) {
-        Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
-        Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
+if ($cleanTemp -eq "Y" -or $cleanTemp -eq "y") {
+    $tempDirs = @(
+        "$env:TEMP\auto-x-account*",
+        "$env:LOCALAPPDATA\auto-x-account"
+    )
+    
+    foreach ($dir in $tempDirs) {
+        if (Test-Path $dir) {
+            Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+            Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
+        }
     }
+} else {
+    Write-Host "  保留临时文件" -ForegroundColor Gray
 }
 
 Write-Host ""
@@ -202,16 +231,22 @@ Write-Host ""
 Write-Host "[6/6] 清理缓存..." -ForegroundColor Cyan
 Write-Host "[6/6] Cleaning cache..." -ForegroundColor Cyan
 
-$cacheDirs = @(
-    "$env:LOCALAPPDATA\Temp\chromiumoxide*",
-    "$env:LOCALAPPDATA\Temp\auto-x-account*"
-)
+$cleanCache = Read-Host "是否清理缓存？(Y/N) / Clean cache? (Y/N)"
 
-foreach ($dir in $cacheDirs) {
-    if (Test-Path $dir) {
-        Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
-        Write-Host "  ✓ 已删除缓存: $dir" -ForegroundColor Green
+if ($cleanCache -eq "Y" -or $cleanCache -eq "y") {
+    $cacheDirs = @(
+        "$env:LOCALAPPDATA\Temp\chromiumoxide*",
+        "$env:LOCALAPPDATA\Temp\auto-x-account*"
+    )
+    
+    foreach ($dir in $cacheDirs) {
+        if (Test-Path $dir) {
+            Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+            Write-Host "  ✓ 已删除缓存: $dir" -ForegroundColor Green
+        }
     }
+} else {
+    Write-Host "  保留缓存" -ForegroundColor Gray
 }
 
 Write-Host ""
