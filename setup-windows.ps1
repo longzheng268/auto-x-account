@@ -88,7 +88,8 @@ function Install-GNUToolchain {
     
     if ($msys2Root -and (Test-Path "$msys2Root\usr\bin\bash.exe")) {
         try {
-            & "$msys2Root\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-x86_64-toolchain" 2>&1 | Out-Null
+            Write-Host "  安装 MinGW-w64 工具包..." -ForegroundColor Gray
+            $output = & "$msys2Root\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-x86_64-toolchain 2>&1"
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "MinGW-w64 工具链配置完成" -ForegroundColor Green
                 Write-Host "MinGW-w64 toolchain configured" -ForegroundColor Green
@@ -96,6 +97,7 @@ function Install-GNUToolchain {
             } else {
                 Write-Host "MinGW-w64 工具链安装失败" -ForegroundColor Red
                 Write-Host "MinGW-w64 toolchain installation failed" -ForegroundColor Red
+                Write-Host "输出: $output" -ForegroundColor Gray
                 return $false
             }
         } catch {
@@ -127,10 +129,24 @@ function Install-RustToolchain {
         }
         
         # 初始化 rustup
-        if ($UseGNU) {
-            rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
-        } else {
-            rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-msvc
+        Write-Host "  初始化 Rust 工具链..." -ForegroundColor Gray
+        try {
+            if ($UseGNU) {
+                $output = rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-gnu 2>&1
+            } else {
+                $output = rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-msvc 2>&1
+            }
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Rust 初始化失败!" -ForegroundColor Red
+                Write-Host "Rust initialization failed!" -ForegroundColor Red
+                Write-Host "输出: $output" -ForegroundColor Gray
+                return $false
+            }
+        } catch {
+            Write-Host "Rust 初始化错误: $_" -ForegroundColor Red
+            Write-Host "Rust initialization error: $_" -ForegroundColor Red
+            return $false
         }
         
         # 更新环境变量
@@ -147,8 +163,8 @@ function Install-RustToolchain {
         if ($UseGNU) {
             Write-Host "配置 GNU 工具链目标..." -ForegroundColor Green
             Write-Host "Configuring GNU toolchain target..." -ForegroundColor Green
-            rustup target add x86_64-pc-windows-gnu
-            rustup default stable-x86_64-pc-windows-gnu
+            rustup target add x86_64-pc-windows-gnu 2>&1 | Out-Null
+            rustup default stable-x86_64-pc-windows-gnu 2>&1 | Out-Null
         }
         return $true
     }
@@ -254,7 +270,11 @@ Write-Host ""
 # 添加必要的 bucket
 Write-Host "添加 extras bucket..." -ForegroundColor Green
 Write-Host "Adding extras bucket..." -ForegroundColor Green
-scoop bucket add extras 2>&1 | Out-Null
+$bucketOutput = scoop bucket add extras 2>&1
+if ($LASTEXITCODE -ne 0 -and $bucketOutput -notmatch "already added") {
+    Write-Host "警告: extras bucket 添加可能失败" -ForegroundColor Yellow
+    Write-Host "Warning: extras bucket add may have failed" -ForegroundColor Yellow
+}
 
 Write-Host ""
 
