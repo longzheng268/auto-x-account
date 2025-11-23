@@ -118,10 +118,22 @@ if (Get-Command scoop -ErrorAction SilentlyContinue) {
         }
         
         # 清理 MSYS2 目录（如果存在）
-        $msys2Dir = "$env:USERPROFILE\scoop\apps\msys2"
-        if (Test-Path $msys2Dir) {
-            Remove-Item -Recurse -Force $msys2Dir -ErrorAction SilentlyContinue
-            Write-Host "  ✓ 已删除 MSYS2 目录" -ForegroundColor Green
+        Write-Host "  正在清理 MSYS2..." -ForegroundColor Yellow
+        $msys2Dirs = @(
+            "$env:USERPROFILE\scoop\apps\msys2",
+            "$env:USERPROFILE\AppData\Local\msys2"
+        )
+        
+        foreach ($dir in $msys2Dirs) {
+            if (Test-Path $dir) {
+                try {
+                    Remove-Item -Recurse -Force $dir -ErrorAction Stop
+                    Write-Host "  ✓ 已删除: $dir" -ForegroundColor Green
+                } catch {
+                    Write-Host "  ⚠ 无法删除: $dir - $_" -ForegroundColor Yellow
+                    Write-Host "    提示：请手动删除或在没有程序使用时重试" -ForegroundColor Gray
+                }
+            }
         }
         
         # 询问是否卸载 Scoop 本身

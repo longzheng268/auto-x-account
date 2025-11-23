@@ -15,38 +15,148 @@ if (-not $isAdmin) {
     Write-Host ""
 }
 
+# ============================================
+# 辅助函数 / Helper Functions
+# ============================================
+
 # 检查 MSVC 工具链是否已安装
 function Test-MSVCInstalled {
+    # 优先使用 vswhere.exe（更快更准确）
+    $buildToolsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $buildToolsPath) {
+        $output = & $buildToolsPath -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+        if ($output) {
+            return $true
+        }
+    }
+    
+    # 回退到检查已知路径
     $vsPaths = @(
-        "${env:ProgramFiles}\Microsoft Visual Studio\2022",
-        "${env:ProgramFiles}\Microsoft Visual Studio\2019",
-        "${env:ProgramFiles}\Microsoft Visual Studio\2017",
-        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022",
-        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019",
-        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2017"
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\VC",
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC",
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\VC",
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\VC",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2017\BuildTools\VC"
     )
     
     foreach ($path in $vsPaths) {
         if (Test-Path $path) {
-            # 检查 VC 目录是否存在
-            $vcPath = Get-ChildItem -Path $path -Filter "VC" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($vcPath) {
-                return $true
-            }
-        }
-    }
-    
-    # 检查 Build Tools
-    $buildToolsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path $buildToolsPath) {
-        $output = & $buildToolsPath -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-        if ($output) {
             return $true
         }
     }
     
     return $false
 }
+
+# 检查命令是否存在
+function Test-CommandExists {
+    param([string]$Command)
+    return $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
+}
+
+# 安装 MSYS2 和 MinGW-w64
+function Install-GNUToolchain {
+    Write-Host ""
+    Write-Host "正在安装 MSYS2 (GNU 工具链)..." -ForegroundColor Green
+    Write-Host "Installing MSYS2 (GNU toolchain)..." -ForegroundColor Green
+    
+    # 检查 MSYS2 是否已通过 Scoop 安装
+    $msys2Root = scoop prefix msys2 2>$null
+    
+    if (-not $msys2Root) {
+        scoop install msys2
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "MSYS2 安装失败!" -ForegroundColor Red
+            Write-Host "MSYS2 installation failed!" -ForegroundColor Red
+            return $false
+        }
+        Write-Host "MSYS2 安装成功!" -ForegroundColor Green
+        Write-Host "MSYS2 installed successfully!" -ForegroundColor Green
+        
+        # 重新获取路径
+        $msys2Root = scoop prefix msys2
+    } else {
+        Write-Host "MSYS2 已安装" -ForegroundColor Green
+        Write-Host "MSYS2 is already installed" -ForegroundColor Green
+    }
+    
+    # 安装 mingw-w64 工具链
+    Write-Host ""
+    Write-Host "正在配置 MinGW-w64 工具链..." -ForegroundColor Green
+    Write-Host "Configuring MinGW-w64 toolchain..." -ForegroundColor Green
+    
+    if ($msys2Root -and (Test-Path "$msys2Root\usr\bin\bash.exe")) {
+        try {
+            & "$msys2Root\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-x86_64-toolchain" 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "MinGW-w64 工具链配置完成" -ForegroundColor Green
+                Write-Host "MinGW-w64 toolchain configured" -ForegroundColor Green
+                return $true
+            } else {
+                Write-Host "MinGW-w64 工具链安装失败" -ForegroundColor Red
+                Write-Host "MinGW-w64 toolchain installation failed" -ForegroundColor Red
+                return $false
+            }
+        } catch {
+            Write-Host "错误: 无法配置 MinGW-w64 工具链 - $_" -ForegroundColor Red
+            Write-Host "Error: Failed to configure MinGW-w64 toolchain - $_" -ForegroundColor Red
+            return $false
+        }
+    } else {
+        Write-Host "错误: MSYS2 安装不完整" -ForegroundColor Red
+        Write-Host "Error: MSYS2 installation incomplete" -ForegroundColor Red
+        return $false
+    }
+}
+
+# 安装 Rust 工具链
+function Install-RustToolchain {
+    param([bool]$UseGNU)
+    
+    Write-Host ""
+    Write-Host "正在安装 Rust..." -ForegroundColor Green
+    Write-Host "Installing Rust..." -ForegroundColor Green
+    
+    if (-not (Test-CommandExists "rustc")) {
+        scoop install rustup
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Rust 安装失败!" -ForegroundColor Red
+            Write-Host "Rust installation failed!" -ForegroundColor Red
+            return $false
+        }
+        
+        # 初始化 rustup
+        if ($UseGNU) {
+            rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
+        } else {
+            rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-msvc
+        }
+        
+        # 更新环境变量
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
+        
+        Write-Host "Rust 安装成功!" -ForegroundColor Green
+        Write-Host "Rust installed successfully!" -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "Rust 已安装" -ForegroundColor Green
+        Write-Host "Rust is already installed" -ForegroundColor Green
+        
+        # 如果选择了 GNU 工具链，添加 GNU target
+        if ($UseGNU) {
+            Write-Host "配置 GNU 工具链目标..." -ForegroundColor Green
+            Write-Host "Configuring GNU toolchain target..." -ForegroundColor Green
+            rustup target add x86_64-pc-windows-gnu
+            rustup default stable-x86_64-pc-windows-gnu
+        }
+        return $true
+    }
+}
+
+# ============================================
+# 主程序 / Main Program
+# ============================================
 
 $hasMSVC = Test-MSVCInstalled
 
@@ -119,7 +229,7 @@ else {
 }
 
 # 检查 Scoop 是否已安装
-if (!(Get-Command scoop -ErrorAction SilentlyContinue)) {
+if (-not (Test-CommandExists "scoop")) {
     Write-Host "正在安装 Scoop..." -ForegroundColor Green
     Write-Host "Installing Scoop..." -ForegroundColor Green
     
@@ -144,82 +254,28 @@ Write-Host ""
 # 添加必要的 bucket
 Write-Host "添加 extras bucket..." -ForegroundColor Green
 Write-Host "Adding extras bucket..." -ForegroundColor Green
-scoop bucket add extras
+scoop bucket add extras 2>&1 | Out-Null
 
 Write-Host ""
 
 # 如果使用 GNU 工具链，先安装 MSYS2
 if ($useGNU) {
-    Write-Host ""
-    Write-Host "正在安装 MSYS2 (GNU 工具链)..." -ForegroundColor Green
-    Write-Host "Installing MSYS2 (GNU toolchain)..." -ForegroundColor Green
-    
-    if (!(Get-Command msys2 -ErrorAction SilentlyContinue)) {
-        scoop install msys2
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "MSYS2 安装失败!" -ForegroundColor Red
-            Write-Host "MSYS2 installation failed!" -ForegroundColor Red
-            exit 1
-        }
-        Write-Host "MSYS2 安装成功!" -ForegroundColor Green
-        Write-Host "MSYS2 installed successfully!" -ForegroundColor Green
-    } else {
-        Write-Host "MSYS2 已安装" -ForegroundColor Green
-        Write-Host "MSYS2 is already installed" -ForegroundColor Green
-    }
-    
-    # 安装 mingw-w64 工具链
-    Write-Host ""
-    Write-Host "正在配置 MinGW-w64 工具链..." -ForegroundColor Green
-    Write-Host "Configuring MinGW-w64 toolchain..." -ForegroundColor Green
-    
-    # 使用 MSYS2 安装必要的工具
-    $msys2Root = scoop prefix msys2
-    if ($msys2Root) {
-        & "$msys2Root\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-x86_64-toolchain"
-        Write-Host "MinGW-w64 工具链配置完成" -ForegroundColor Green
-        Write-Host "MinGW-w64 toolchain configured" -ForegroundColor Green
+    $gnuSuccess = Install-GNUToolchain
+    if (-not $gnuSuccess) {
+        Write-Host ""
+        Write-Host "GNU 工具链安装失败，无法继续" -ForegroundColor Red
+        Write-Host "GNU toolchain installation failed, cannot continue" -ForegroundColor Red
+        exit 1
     }
 }
 
 # 安装 Rust
-Write-Host ""
-Write-Host "正在安装 Rust..." -ForegroundColor Green
-Write-Host "Installing Rust..." -ForegroundColor Green
-
-if (!(Get-Command rustc -ErrorAction SilentlyContinue)) {
-    scoop install rustup
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Rust 安装失败!" -ForegroundColor Red
-        Write-Host "Rust installation failed!" -ForegroundColor Red
-        exit 1
-    }
-    
-    # 初始化 rustup
-    if ($useGNU) {
-        # 使用 GNU 工具链
-        rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
-    } else {
-        # 使用 MSVC 工具链（默认）
-        rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-msvc
-    }
-    
-    # 更新环境变量
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
-    
-    Write-Host "Rust 安装成功!" -ForegroundColor Green
-    Write-Host "Rust installed successfully!" -ForegroundColor Green
-} else {
-    Write-Host "Rust 已安装" -ForegroundColor Green
-    Write-Host "Rust is already installed" -ForegroundColor Green
-    
-    # 如果选择了 GNU 工具链，添加 GNU target
-    if ($useGNU) {
-        Write-Host "配置 GNU 工具链目标..." -ForegroundColor Green
-        Write-Host "Configuring GNU toolchain target..." -ForegroundColor Green
-        rustup target add x86_64-pc-windows-gnu
-        rustup default stable-x86_64-pc-windows-gnu
-    }
+$rustSuccess = Install-RustToolchain -UseGNU $useGNU
+if (-not $rustSuccess) {
+    Write-Host ""
+    Write-Host "Rust 安装失败，无法继续" -ForegroundColor Red
+    Write-Host "Rust installation failed, cannot continue" -ForegroundColor Red
+    exit 1
 }
 
 Write-Host ""
@@ -228,7 +284,7 @@ Write-Host ""
 Write-Host "正在安装 Git..." -ForegroundColor Green
 Write-Host "Installing Git..." -ForegroundColor Green
 
-if (!(Get-Command git -ErrorAction SilentlyContinue)) {
+if (-not (Test-CommandExists "git")) {
     scoop install git
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Git 安装失败!" -ForegroundColor Red
@@ -248,13 +304,16 @@ Write-Host ""
 Write-Host "正在安装 Chromium..." -ForegroundColor Green
 Write-Host "Installing Chromium..." -ForegroundColor Green
 
-if (!(Get-Command chrome -ErrorAction SilentlyContinue)) {
-    scoop install chromium
+if (-not (Test-CommandExists "chrome") -and -not (Test-CommandExists "chromium")) {
+    scoop install chromium 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Chromium 安装失败，尝试安装 Google Chrome..." -ForegroundColor Yellow
         Write-Host "Chromium installation failed, trying Google Chrome..." -ForegroundColor Yellow
-        scoop install googlechrome
+        scoop install googlechrome 2>&1 | Out-Null
     }
+} else {
+    Write-Host "浏览器已安装" -ForegroundColor Green
+    Write-Host "Browser is already installed" -ForegroundColor Green
 }
 
 Write-Host ""
