@@ -6,10 +6,8 @@
 
 mod batch;
 mod bitbrowser;
-mod browser_detector;
 mod captcha;
 mod config;
-mod custom_captcha_solver;
 mod data_dir;
 mod email;
 mod email_provider;

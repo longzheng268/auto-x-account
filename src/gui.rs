@@ -180,6 +180,34 @@ impl AutoXAccountApp {
                         state.show_settings = !state.show_settings;
                     }
                 }
+
+                ui.add_space(8.0);
+
+                // 语言切换按钮
+                if let Ok(mut state) = self.state.lock() {
+                    let current_lang = if state.config.language == "zh-CN" {
+                        "🇨🇳 中文"
+                    } else {
+                        "🇺🇸 English"
+                    };
+
+                    egui::ComboBox::from_label("🌐")
+                        .selected_text(current_lang)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_value(&mut state.config.language, "zh-CN".to_string(), "🇨🇳 中文").clicked() {
+                                // 保存配置
+                                let _ = crate::data_dir::save_config(&state.config);
+                            }
+                            if ui.selectable_value(&mut state.config.language, "en-US".to_string(), "🇺🇸 English").clicked() {
+                                // 保存配置
+                                let _ = crate::data_dir::save_config(&state.config);
+                            }
+                        });
+                }
+
+                ui.add_space(8.0);
+                    }
+                }
             });
         });
 
