@@ -61,6 +61,12 @@ jobs:
             artifact_name: auto-x-account.exe
             asset_name: auto-x-account-windows-x86_64
             
+          - name: Windows ARM64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact_name: auto-x-account.exe
+            asset_name: auto-x-account-windows-arm64
+            
           - name: macOS x86_64
             os: macos-latest
             target: x86_64-apple-darwin
@@ -78,6 +84,12 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: auto-x-account
             asset_name: auto-x-account-linux-x86_64
+            
+          - name: Linux ARM64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: auto-x-account
+            asset_name: auto-x-account-linux-arm64
 
     runs-on: ${{ matrix.platform.os }}
     
@@ -95,6 +107,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev pkg-config libdbus-1-dev libglib2.0-dev
+          
+      - name: 安装 ARM64 交叉编译工具 (Linux) / Install ARM64 cross-compilation tools (Linux)
+        if: runner.os == 'Linux' && matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: 缓存 Cargo / Cache Cargo
         uses: actions/cache@v3
@@ -109,6 +126,8 @@ jobs:
 
       - name: 构建发布版本 / Build release
         run: cargo build --release --target ${{ matrix.platform.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: 打包二进制文件 / Package binary
         shell: bash
@@ -146,20 +165,24 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
           body: |
             ## X 账号自动注册系统 ${{ github.ref_name }}
             
             ### 下载 / Downloads
             
             #### Windows
-            - 便携版: `auto-x-account-windows-x86_64.zip`
+            - x86_64 (64位Intel/AMD): `auto-x-account-windows-x86_64.zip`
+            - ARM64 (ARM处理器): `auto-x-account-windows-arm64.zip`
             
             #### macOS
-            - Intel: `auto-x-account-macos-x86_64.tar.gz`
-            - Apple Silicon: `auto-x-account-macos-arm64.tar.gz`
+            - Intel (x86_64): `auto-x-account-macos-x86_64.tar.gz`
+            - Apple Silicon (M1/M2/M3): `auto-x-account-macos-arm64.tar.gz`
             
             #### Linux
-            - 通用版: `auto-x-account-linux-x86_64.tar.gz`
+            - x86_64 (64位Intel/AMD): `auto-x-account-linux-x86_64.tar.gz`
+            - ARM64/aarch64 (ARM处理器): `auto-x-account-linux-arm64.tar.gz`
             
             ### 使用方法 / Usage
             
@@ -176,8 +199,10 @@ jobs:
             
           files: |
             auto-x-account-windows-x86_64/*.zip
+            auto-x-account-windows-arm64/*.zip
             auto-x-account-macos-x86_64/*.tar.gz
             auto-x-account-macos-arm64/*.tar.gz
             auto-x-account-linux-x86_64/*.tar.gz
+            auto-x-account-linux-arm64/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
