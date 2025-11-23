@@ -61,11 +61,17 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - name: Windows x86_64
+          - name: Windows x86_64 (MSVC)
             os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: auto-x-account.exe
-            asset_name: auto-x-account-windows-x86_64
+            asset_name: auto-x-account-windows-x86_64-msvc
+            
+          - name: Windows x86_64 (GNU)
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+            artifact_name: auto-x-account.exe
+            asset_name: auto-x-account-windows-x86_64-gnu
             
           - name: Windows ARM64
             os: windows-latest
@@ -107,6 +113,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform.target }}
+
+      - name: 安装 MinGW-w64 工具链 (Windows GNU) / Install MinGW-w64 toolchain (Windows GNU)
+        if: runner.os == 'Windows' && matrix.platform.target == 'x86_64-pc-windows-gnu'
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" >> $GITHUB_PATH
 
       - name: 安装依赖 (Linux) / Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -210,8 +222,13 @@ jobs:
             ### 📥 下载 / Downloads
             
             #### Windows
-            - **x86_64** (64位Intel/AMD): `auto-x-account-windows-x86_64.zip`
+            - **x86_64 (MSVC)** - 推荐，兼容性最好: `auto-x-account-windows-x86_64-msvc.zip`
+            - **x86_64 (GNU)** - 静态链接，无需 MSVC 运行时: `auto-x-account-windows-x86_64-gnu.zip`
             - **ARM64** (ARM处理器): `auto-x-account-windows-arm64.zip`
+            
+            **版本说明：**
+            - MSVC 版本：使用 Visual Studio 工具链编译，兼容性最好，推荐大多数用户使用
+            - GNU 版本：使用 MinGW-w64 编译，完全静态链接，无需安装 Visual C++ 运行时库，适合追求独立部署的用户
             
             #### macOS
             - **Intel** (x86_64): `auto-x-account-macos-x86_64.tar.gz`
@@ -259,7 +276,8 @@ jobs:
             请查看项目 [README.md](https://github.com/longzheng268/auto-x-account) 获取更多信息。
             
           files: |
-            auto-x-account-windows-x86_64/*.zip
+            auto-x-account-windows-x86_64-msvc/*.zip
+            auto-x-account-windows-x86_64-gnu/*.zip
             auto-x-account-windows-arm64/*.zip
             auto-x-account-macos-x86_64/*.tar.gz
             auto-x-account-macos-arm64/*.tar.gz

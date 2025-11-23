@@ -33,8 +33,17 @@
 从 [Releases](https://github.com/longzheng268/auto-x-account/releases) 页面下载适合你系统的版本：
 
 #### Windows
-- 下载 `auto-x-account-windows-x86_64.zip`
-- 解压后直接运行 `auto-x-account.exe`
+推荐选择：
+- **MSVC 版本** (推荐): `auto-x-account-windows-x86_64-msvc.zip`
+  - 使用 Visual Studio 工具链编译，兼容性最好
+  - 适合大多数用户
+  
+- **GNU 版本**: `auto-x-account-windows-x86_64-gnu.zip`
+  - 使用 MinGW-w64 编译，完全静态链接
+  - 无需安装 Visual C++ 运行时库
+  - 适合追求独立部署、绿色便携的用户
+
+**解压后直接运行 `auto-x-account.exe`**
 
 #### macOS
 - Intel 芯片：`auto-x-account-macos-x86_64.tar.gz`
@@ -73,7 +82,9 @@ powershell -ExecutionPolicy Bypass -File setup-windows.ps1
 #### 手动编译
 
 **前提条件**：
-- **Windows**: 需要安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 或使用 GNU 工具链
+- **Windows**: 
+  - **MSVC 工具链**（推荐）: 安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+  - **GNU 工具链**（完全静态链接）: 安装 MinGW-w64（通过 MSYS2 或 Chocolatey）
 - **macOS/Linux**: 需要基本的构建工具（gcc, make 等）
 
 ```bash
@@ -81,15 +92,46 @@ powershell -ExecutionPolicy Bypass -File setup-windows.ps1
 git clone https://github.com/longzheng268/auto-x-account.git
 cd auto-x-account
 
-# 编译发布版本
+# Windows MSVC 编译（默认，推荐）
 cargo build --release
 
-# Windows 使用 GNU 工具链编译（可选）
+# Windows GNU 编译（静态链接，无需运行时）
 cargo build --release --target x86_64-pc-windows-gnu
+
+# macOS/Linux 编译
+cargo build --release
 
 # 运行
 ./target/release/auto-x-account
+# Windows: .\target\release\auto-x-account.exe
 ```
+
+**Windows GNU 工具链编译说明：**
+
+使用 GNU 工具链编译可以获得完全静态链接的二进制文件，无需依赖 Visual C++ 运行时库。
+
+1. **安装 MinGW-w64（通过 Chocolatey）：**
+   ```powershell
+   choco install mingw -y
+   ```
+
+2. **或通过 MSYS2 安装：**
+   ```bash
+   pacman -S mingw-w64-x86_64-toolchain
+   ```
+
+3. **配置 Rust 使用 GNU 工具链：**
+   ```bash
+   rustup target add x86_64-pc-windows-gnu
+   rustup default stable-x86_64-pc-windows-gnu
+   ```
+
+4. **编译项目：**
+   ```bash
+   cargo build --release --target x86_64-pc-windows-gnu
+   ```
+
+项目已经配置了 `.cargo/config.toml` 文件，会自动使用静态链接配置。
 
 ## 🗑️ 卸载
 
@@ -290,21 +332,47 @@ cargo fmt --check
 
 ## 📝 常见问题
 
-### Q: Windows 编译时提示 "linker `link.exe` not found" 怎么办？
+### Q: Windows 编译时提示 "linker `link.exe` not found" 或 "dlltool.exe not found" 怎么办？
 
-A: 这是因为缺少 MSVC 工具链。有两种解决方案：
+A: 这是因为缺少编译工具链。有两种解决方案：
 
-**方案 1（推荐）**: 安装 Visual Studio Build Tools
+**方案 1（推荐）**: 安装 Visual Studio Build Tools (MSVC)
 1. 访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/
 2. 下载并安装 "Build Tools for Visual Studio 2022"
 3. 在安装程序中选择 "Desktop development with C++" 工作负载
-4. 安装完成后重新编译
+4. 安装完成后重新编译：`cargo build --release`
 
-**方案 2**: 使用 GNU 工具链
-1. 重新运行 `setup-windows.ps1` 脚本
+**方案 2**: 使用 GNU 工具链（MinGW-w64）- 静态链接，无需运行时
+1. 安装 MinGW-w64：
+   - 通过 Chocolatey: `choco install mingw -y`
+   - 或通过 MSYS2: `pacman -S mingw-w64-x86_64-toolchain`
+   
+2. 配置 Rust：
+   ```bash
+   rustup target add x86_64-pc-windows-gnu
+   rustup default stable-x86_64-pc-windows-gnu
+   ```
+
+3. 编译项目：
+   ```bash
+   cargo build --release --target x86_64-pc-windows-gnu
+   ```
+
+**方案 3**: 使用一键安装脚本
+1. 运行 `setup-windows.ps1` 脚本
 2. 当提示选择时，选择 "2" 使用 GNU 工具链
-3. 脚本会自动安装 MSYS2 和 MinGW-w64
-4. 使用命令编译：`cargo build --release --target x86_64-pc-windows-gnu`
+3. 脚本会自动安装所有依赖
+
+**GNU 工具链的优势：**
+- ✅ 完全静态链接，生成的 exe 文件独立运行
+- ✅ 无需安装 Visual C++ 运行时库
+- ✅ 适合绿色便携部署
+- ✅ 文件体积可能更小
+
+**MSVC 工具链的优势：**
+- ✅ 官方推荐，兼容性最好
+- ✅ 与 Windows 系统集成更紧密
+- ✅ 调试工具支持更完善
 
 ### Q: 如何处理人机验证？
 

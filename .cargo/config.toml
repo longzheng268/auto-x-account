@@ -1,0 +1,71 @@
+# Cargo 构建配置
+# Cargo Build Configuration
+
+# Windows GNU 工具链配置 (MinGW-w64)
+# Windows GNU Toolchain Configuration (MinGW-w64)
+[target.x86_64-pc-windows-gnu]
+# 使用 MinGW-w64 的 gcc 作为链接器
+# Use MinGW-w64 gcc as linker
+linker = "x86_64-w64-mingw32-gcc"
+
+# Windows GNU 工具链的静态链接配置
+# Static linking configuration for Windows GNU toolchain
+rustflags = [
+    # 静态链接 C 运行时库，避免依赖外部 DLL
+    # Statically link C runtime to avoid external DLL dependencies
+    "-C", "link-arg=-static-libgcc",
+    "-C", "link-arg=-static-libstdc++",
+    "-C", "link-arg=-static",
+    "-C", "link-arg=-lwinpthread",
+    
+    # 优化二进制文件大小
+    # Optimize binary size
+    "-C", "target-feature=+crt-static",
+]
+
+# Windows MSVC 工具链配置（默认）
+# Windows MSVC Toolchain Configuration (default)
+[target.x86_64-pc-windows-msvc]
+# MSVC 默认使用静态链接 CRT
+# MSVC uses static CRT by default
+rustflags = [
+    "-C", "target-feature=+crt-static",
+]
+
+# 通用构建配置
+# General build configuration
+[build]
+# 默认使用所有可用的 CPU 核心进行并行编译
+# Use all available CPU cores for parallel compilation by default
+jobs = 0
+
+# 增量编译配置（开发时加快编译速度）
+# Incremental compilation for faster development builds
+incremental = true
+
+# 全局编译器参数
+# Global compiler flags
+[target.'cfg(all())']
+# 为所有平台启用增量编译缓存
+# Enable incremental compilation cache for all platforms
+rustflags = [
+    # LTO 优化在 release 配置中已经启用
+    # LTO optimization is already enabled in release profile
+]
+
+# Linux 静态链接配置（可选）
+# Linux static linking configuration (optional)
+[target.x86_64-unknown-linux-gnu]
+# 对于 Linux，可以选择性地静态链接 musl
+# For Linux, optionally use musl for static linking
+# rustflags = ["-C", "target-feature=+crt-static"]
+
+# macOS 配置
+# macOS Configuration
+[target.x86_64-apple-darwin]
+# macOS 通常不需要特殊的静态链接配置
+# macOS typically doesn't require special static linking configuration
+
+[target.aarch64-apple-darwin]
+# Apple Silicon 配置
+# Apple Silicon configuration
