@@ -58,6 +58,9 @@ pub struct AppState {
     pub accounts: Vec<AccountDisplay>,
     pub show_settings: bool,
     pub config: Config,
+    /// 邮箱输入模式：true=手动输入，false=自动生成
+    /// Email input mode: true=manual input, false=auto generate
+    pub email_manual_mode: bool,
 }
 
 #[derive(Clone)]
@@ -182,18 +185,65 @@ impl AutoXAccountApp {
 
                 ui.add_space(12.0);
 
-                // 邮箱输入框
+                // 邮箱提供商显示
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("邮箱地址:").size(16.0));
-                    ui.add_space(8.0);
-
-                    let email_edit = egui::TextEdit::singleline(&mut state.email)
-                        .desired_width(300.0)
-                        .hint_text("请输入邮箱地址")
-                        .font(FontId::proportional(16.0));
-
-                    ui.add(email_edit);
+                    ui.label(RichText::new("当前邮箱提供商:").size(14.0).color(self.colors.text_secondary));
+                    ui.label(
+                        RichText::new(&state.config.email_provider.selected_provider)
+                            .size(14.0)
+                            .color(self.colors.primary)
+                            .strong(),
+                    );
+                    ui.label(RichText::new("(可在设置中更改)").size(12.0).color(self.colors.text_secondary).italics());
                 });
+
+                ui.add_space(8.0);
+
+                // 邮箱输入模式选择
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("邮箱模式:").size(16.0));
+                    ui.radio_value(&mut state.email_manual_mode, true, "手动输入");
+                    ui.radio_value(&mut state.email_manual_mode, false, "自动生成");
+                });
+
+                ui.add_space(8.0);
+
+                // 根据模式显示不同的输入界面
+                if state.email_manual_mode {
+                    // 手动输入模式
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("邮箱地址:").size(16.0));
+                        ui.add_space(8.0);
+
+                        let email_edit = egui::TextEdit::singleline(&mut state.email)
+                            .desired_width(300.0)
+                            .hint_text("请输入邮箱地址")
+                            .font(FontId::proportional(16.0));
+
+                        ui.add(email_edit);
+                    });
+                } else {
+                    // 自动生成模式
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("✨ 将使用选定的邮箱提供商自动生成临时邮箱")
+                                .size(14.0)
+                                .color(self.colors.success),
+                        );
+                    });
+                    
+                    if !state.email.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("生成的邮箱:").size(14.0));
+                            ui.label(
+                                RichText::new(&state.email)
+                                    .size(14.0)
+                                    .color(self.colors.text_secondary)
+                                    .monospace(),
+                            );
+                        });
+                    }
+                }
 
                 ui.add_space(16.0);
 
@@ -230,6 +280,11 @@ impl AutoXAccountApp {
 
                 if ui.add(button).clicked() {
                     // TODO: 触发注册流程
+                    // 如果是自动生成模式，先生成邮箱
+                    if !state.email_manual_mode {
+                        state.status = "正在生成临时邮箱...".to_string();
+                        // 这里应该调用后端API生成邮箱
+                    }
                 }
             });
 
@@ -409,6 +464,212 @@ impl AutoXAccountApp {
                         ui.label("域名:");
                         ui.text_edit_singleline(&mut state.config.smtp.domain);
                     });
+
+                    ui.add_space(16.0);
+                    ui.separator();
+                    ui.add_space(16.0);
+
+                    // 邮箱提供商设置
+                    ui.label(
+                        RichText::new("📮 邮箱提供商设置")
+                            .size(18.0)
+                            .color(self.colors.text_primary)
+                            .strong(),
+                    );
+                    ui.add_space(8.0);
+
+                    // 提供商选择
+                    ui.horizontal(|ui| {
+                        ui.label("邮箱提供商:");
+                        egui::ComboBox::from_label("")
+                            .selected_text(&state.config.email_provider.selected_provider)
+                            .show_ui(ui, |ui| {
+                                // 根据运行模式显示不同的选项
+                                if state.config.is_production() {
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "SelfHosted".to_string(),
+                                        "自建邮箱 (SelfHosted)",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "Custom".to_string(),
+                                        "自定义 (Custom)",
+                                    );
+                                } else {
+                                    // 测试模式显示所有选项
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "MailTm".to_string(),
+                                        "mail.tm (临时邮箱)",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "GuerrillaMail".to_string(),
+                                        "Guerrilla Mail",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "TempMail".to_string(),
+                                        "Temp-Mail.org",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "TenMinuteMail".to_string(),
+                                        "10minutemail",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "DropMail".to_string(),
+                                        "DropMail",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "Mailinator".to_string(),
+                                        "Mailinator",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "SelfHosted".to_string(),
+                                        "自建邮箱 (SelfHosted)",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.config.email_provider.selected_provider,
+                                        "Custom".to_string(),
+                                        "自定义 (Custom)",
+                                    );
+                                }
+                            });
+                    });
+
+                    ui.add_space(8.0);
+
+                    // 根据选择的提供商显示相应的配置选项
+                    match state.config.email_provider.selected_provider.as_str() {
+                        "Custom" => {
+                            ui.label(
+                                RichText::new("自定义邮箱配置")
+                                    .size(16.0)
+                                    .color(self.colors.text_primary)
+                                    .strong(),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(RichText::new("SMTP 配置:").size(14.0));
+                            ui.horizontal(|ui| {
+                                ui.label("主机:");
+                                let mut host = state.config.email_provider.custom_smtp_host.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut host).changed() {
+                                    state.config.email_provider.custom_smtp_host = if host.is_empty() { None } else { Some(host) };
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("端口:");
+                                let mut port = state.config.email_provider.custom_smtp_port.unwrap_or(587);
+                                if ui.add(egui::DragValue::new(&mut port).clamp_range(1..=65535)).changed() {
+                                    state.config.email_provider.custom_smtp_port = Some(port);
+                                }
+                            });
+
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("IMAP 配置:").size(14.0));
+                            ui.horizontal(|ui| {
+                                ui.label("主机:");
+                                let mut host = state.config.email_provider.custom_imap_host.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut host).changed() {
+                                    state.config.email_provider.custom_imap_host = if host.is_empty() { None } else { Some(host) };
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("端口:");
+                                let mut port = state.config.email_provider.custom_imap_port.unwrap_or(993);
+                                if ui.add(egui::DragValue::new(&mut port).clamp_range(1..=65535)).changed() {
+                                    state.config.email_provider.custom_imap_port = Some(port);
+                                }
+                            });
+
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("认证信息:").size(14.0));
+                            ui.horizontal(|ui| {
+                                ui.label("用户名:");
+                                let mut username = state.config.email_provider.custom_username.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut username).changed() {
+                                    state.config.email_provider.custom_username = if username.is_empty() { None } else { Some(username) };
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("密码:");
+                                let mut password = state.config.email_provider.custom_password.clone().unwrap_or_default();
+                                if ui.add(egui::TextEdit::singleline(&mut password).password(true)).changed() {
+                                    state.config.email_provider.custom_password = if password.is_empty() { None } else { Some(password) };
+                                }
+                            });
+
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("API 配置（可选）:").size(14.0));
+                            ui.horizontal(|ui| {
+                                ui.label("API Key:");
+                                let mut api_key = state.config.email_provider.custom_api_key.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut api_key).changed() {
+                                    state.config.email_provider.custom_api_key = if api_key.is_empty() { None } else { Some(api_key) };
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("API Endpoint:");
+                                let mut endpoint = state.config.email_provider.custom_api_endpoint.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut endpoint).changed() {
+                                    state.config.email_provider.custom_api_endpoint = if endpoint.is_empty() { None } else { Some(endpoint) };
+                                }
+                            });
+                        }
+                        "Mailinator" => {
+                            ui.label(
+                                RichText::new("ℹ Mailinator 需要 API Key 才能查询邮件")
+                                    .size(13.0)
+                                    .color(self.colors.warning),
+                            );
+                            ui.horizontal(|ui| {
+                                ui.label("API Key:");
+                                let mut api_key = state.config.email_provider.custom_api_key.clone().unwrap_or_default();
+                                if ui.text_edit_singleline(&mut api_key).changed() {
+                                    state.config.email_provider.custom_api_key = if api_key.is_empty() { None } else { Some(api_key) };
+                                }
+                            });
+                        }
+                        "SelfHosted" => {
+                            ui.label(
+                                RichText::new("ℹ 使用配置的 SMTP 域名生成随机邮箱")
+                                    .size(13.0)
+                                    .color(self.colors.text_secondary),
+                            );
+                            ui.label(
+                                RichText::new(format!("当前域名: {}", state.config.smtp.domain))
+                                    .size(13.0)
+                                    .color(self.colors.success),
+                            );
+                        }
+                        "MailTm" => {
+                            ui.label(
+                                RichText::new("✅ mail.tm 是免费的临时邮箱服务，无需额外配置")
+                                    .size(13.0)
+                                    .color(self.colors.success),
+                            );
+                        }
+                        "GuerrillaMail" => {
+                            ui.label(
+                                RichText::new("✅ Guerrilla Mail 是老牌临时邮箱服务，无需额外配置")
+                                    .size(13.0)
+                                    .color(self.colors.success),
+                            );
+                        }
+                        _ => {
+                            ui.label(
+                                RichText::new("✅ 此提供商无需额外配置")
+                                    .size(13.0)
+                                    .color(self.colors.success),
+                            );
+                        }
+                    }
 
                     ui.add_space(16.0);
                     ui.separator();

@@ -38,6 +38,49 @@ pub enum EmailProvider {
     Custom,
 }
 
+impl EmailProvider {
+    /// 从字符串解析邮箱提供商
+    /// Parse email provider from string
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "SelfHosted" => Some(EmailProvider::SelfHosted),
+            "MailTm" => Some(EmailProvider::MailTm),
+            "GuerrillaMail" => Some(EmailProvider::GuerrillaMail),
+            "TempMail" => Some(EmailProvider::TempMail),
+            "TenMinuteMail" => Some(EmailProvider::TenMinuteMail),
+            "DropMail" => Some(EmailProvider::DropMail),
+            "Mailinator" => Some(EmailProvider::Mailinator),
+            "Outlook" => Some(EmailProvider::Outlook),
+            "Gmail" => Some(EmailProvider::Gmail),
+            "Yahoo" => Some(EmailProvider::Yahoo),
+            "ProtonMail" => Some(EmailProvider::ProtonMail),
+            "ZohoMail" => Some(EmailProvider::ZohoMail),
+            "Custom" => Some(EmailProvider::Custom),
+            _ => None,
+        }
+    }
+
+    /// 转换为字符串
+    /// Convert to string
+    pub fn to_string(&self) -> String {
+        match self {
+            EmailProvider::SelfHosted => "SelfHosted".to_string(),
+            EmailProvider::MailTm => "MailTm".to_string(),
+            EmailProvider::GuerrillaMail => "GuerrillaMail".to_string(),
+            EmailProvider::TempMail => "TempMail".to_string(),
+            EmailProvider::TenMinuteMail => "TenMinuteMail".to_string(),
+            EmailProvider::DropMail => "DropMail".to_string(),
+            EmailProvider::Mailinator => "Mailinator".to_string(),
+            EmailProvider::Outlook => "Outlook".to_string(),
+            EmailProvider::Gmail => "Gmail".to_string(),
+            EmailProvider::Yahoo => "Yahoo".to_string(),
+            EmailProvider::ProtonMail => "ProtonMail".to_string(),
+            EmailProvider::ZohoMail => "ZohoMail".to_string(),
+            EmailProvider::Custom => "Custom".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailProviderConfig {
     pub provider: EmailProvider,

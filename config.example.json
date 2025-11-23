@@ -44,7 +44,16 @@
   "email_provider": {
     "force_self_hosted": false,
     "allowed_temp_providers": ["MailTm", "GuerrillaMail"],
-    "production_domains": ["example.com"]
+    "production_domains": ["example.com"],
+    "selected_provider": "MailTm",
+    "custom_smtp_host": null,
+    "custom_smtp_port": null,
+    "custom_imap_host": null,
+    "custom_imap_port": null,
+    "custom_username": null,
+    "custom_password": null,
+    "custom_api_key": null,
+    "custom_api_endpoint": null
   },
   "captcha": {
     "mode": "auto",
