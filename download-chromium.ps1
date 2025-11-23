@@ -13,7 +13,14 @@ Write-Host "=== Chromium Browser Downloader ===" -ForegroundColor Green
 Write-Host ""
 
 # 检测架构
-$Arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+$IsARM64 = (Get-WmiObject -Class Win32_Processor).Architecture -eq 12
+$Arch = if ($IsARM64) { 
+    "ARM64" 
+} elseif ([Environment]::Is64BitOperatingSystem) { 
+    "x64" 
+} else { 
+    "x86" 
+}
 Write-Host "检测到架构 / Detected Architecture: " -NoNewline
 Write-Host $Arch -ForegroundColor Yellow
 Write-Host ""
@@ -33,7 +40,14 @@ New-Item -ItemType Directory -Force -Path $ChromiumDir | Out-Null
 
 # Chromium 下载链接
 $ChromiumBaseUrl = "https://commondatastorage.googleapis.com/chromium-browser-snapshots"
-$Platform = "Win_x64"
+$Platform = if ($Arch -eq "ARM64") { 
+    "Win_ARM64" 
+} elseif ($Arch -eq "x64") { 
+    "Win_x64" 
+} else {
+    Write-Host "错误: x86 架构不再受 Chromium 支持 / Error: x86 architecture is no longer supported by Chromium" -ForegroundColor Red
+    exit 1
+}
 $LastChangeUrl = "$ChromiumBaseUrl/$Platform/LAST_CHANGE"
 
 # 获取最新版本号

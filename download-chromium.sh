@@ -77,7 +77,11 @@ CHROMIUM_BASE_URL="https://commondatastorage.googleapis.com/chromium-browser-sna
 echo -e "${GREEN}正在获取最新版本信息... / Fetching latest version...${NC}"
 
 if [ "$OS" = "linux" ]; then
-    PLATFORM="Linux_x64"
+    if [ "$ARCH" = "arm64" ]; then
+        PLATFORM="Linux_ARM64"
+    else
+        PLATFORM="Linux_x64"
+    fi
     LAST_CHANGE_URL="$CHROMIUM_BASE_URL/$PLATFORM/LAST_CHANGE"
     VERSION=$(curl -s "$LAST_CHANGE_URL")
     DOWNLOAD_URL="$CHROMIUM_BASE_URL/$PLATFORM/$VERSION/chrome-linux.zip"
@@ -93,7 +97,11 @@ elif [ "$OS" = "mac" ]; then
     DOWNLOAD_URL="$CHROMIUM_BASE_URL/$PLATFORM/$VERSION/chrome-mac.zip"
     EXTRACT_DIR="chrome-mac"
 elif [ "$OS" = "windows" ]; then
-    PLATFORM="Win_x64"
+    if [ "$ARCH" = "arm64" ]; then
+        PLATFORM="Win_ARM64"
+    else
+        PLATFORM="Win_x64"
+    fi
     LAST_CHANGE_URL="$CHROMIUM_BASE_URL/$PLATFORM/LAST_CHANGE"
     VERSION=$(curl -s "$LAST_CHANGE_URL")
     DOWNLOAD_URL="$CHROMIUM_BASE_URL/$PLATFORM/$VERSION/chrome-win.zip"
