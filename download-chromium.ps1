@@ -13,7 +13,17 @@ Write-Host "=== Chromium Browser Downloader ===" -ForegroundColor Green
 Write-Host ""
 
 # 检测架构
-$IsARM64 = (Get-WmiObject -Class Win32_Processor).Architecture -eq 12
+try {
+    # 使用 Get-CimInstance（推荐）或回退到 Get-WmiObject
+    $IsARM64 = try {
+        (Get-CimInstance -Class Win32_Processor -ErrorAction Stop).Architecture -eq 12
+    } catch {
+        (Get-WmiObject -Class Win32_Processor).Architecture -eq 12
+    }
+} catch {
+    $IsARM64 = $false
+}
+
 $Arch = if ($IsARM64) { 
     "ARM64" 
 } elseif ([Environment]::Is64BitOperatingSystem) { 

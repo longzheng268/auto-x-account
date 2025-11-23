@@ -148,8 +148,8 @@ rm -f "$TEMP_ZIP"
 if [ "$OS" = "linux" ]; then
     chmod +x "$CHROMIUM_DIR/chrome"
 elif [ "$OS" = "mac" ]; then
-    chmod +x "$CHROMIUM_DIR/Chromium.app/Contents/MacOS/Chromium" 2>/dev/null || \
-    chmod +x "$CHROMIUM_DIR/Google Chrome.app/Contents/MacOS/Google Chrome" 2>/dev/null || true
+    # macOS 的 Chromium 下载包含 Chromium.app
+    chmod +x "$CHROMIUM_DIR/Chromium.app/Contents/MacOS/Chromium" 2>/dev/null || true
 fi
 
 echo ""
