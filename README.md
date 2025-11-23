@@ -26,6 +26,12 @@
 - 🌍 **多语言** - 支持中文和英文界面
 - 📦 **跨平台** - 支持 Windows、macOS、Linux
 
+## 📚 文档
+
+- 📖 [静态编译指南](docs/static-build.md) - 如何构建完全静态链接的可执行文件
+- 📧 [MailCow 部署指南](docs/mailcow-setup.md) - 自建邮件服务器的完整方案
+- 🔧 [编译故障排查](docs/build-troubleshooting.md) - 解决各种编译错误和问题
+
 ## 📥 安装
 
 ### 方式一：下载预编译版本（推荐）
@@ -336,7 +342,41 @@ rm -rf browser_data screenshots logs accounts.json config.json
 
 根据本系统的使用场景和需求，我们推荐以下邮箱系统：
 
-#### 🥇 首选：Maddy Mail Server
+#### 🥇 首选：MailCow Dockerized
+
+**为什么推荐 MailCow：**
+- ✅ **Docker 一键部署** - 最简单的自建邮件服务器方案
+- ✅ **完整的 Web 管理界面** - 可以方便地批量创建邮箱
+- ✅ **支持 SMTP/IMAP** - 与项目的 Custom 模式完美兼容
+- ✅ **稳定性好** - 生产环境可用
+- ✅ **开源且活跃维护** - 社区支持强大
+- ✅ **内置反垃圾邮件** - Rspamd、ClamAV 等安全组件
+- ✅ **支持多域名** - 可以管理多个邮件域名
+
+**快速开始：**
+
+📖 **完整部署指南请查看：[MailCow 部署指南](docs/mailcow-setup.md)**
+
+```bash
+# 快速部署示例
+cd /opt
+git clone https://github.com/mailcow/mailcow-dockerized
+cd mailcow-dockerized
+./generate_config.sh
+docker compose up -d
+
+# 访问管理界面
+# https://mail.yourdomain.com
+# 默认账号: admin / moohoo
+```
+
+**适用场景：**
+- 任何规模的批量注册需求（小规模到企业级）
+- 需要完整的邮件管理界面和 API 支持
+- 希望一键部署且易于维护
+- 对稳定性和可靠性有较高要求
+
+#### 🥈 备选：Maddy Mail Server
 
 **推荐理由：**
 - ✅ **开箱即用**：单一二进制文件，配置简单
@@ -423,31 +463,39 @@ docker run -d \
 
 ### 邮箱系统对比表
 
-| 特性 | Maddy | MailServer | BillionMail | Axigen |
-|------|-------|-----------|-------------|---------|
-| **部署难度** | ⭐⭐⭐⭐⭐ 极易 | ⭐⭐⭐⭐ 容易 | ⭐⭐⭐ 中等 | ⭐⭐ 复杂 |
-| **资源占用** | ⭐⭐⭐⭐⭐ 极低 | ⭐⭐⭐ 中等 | ⭐⭐⭐ 中等 | ⭐⭐ 较高 |
-| **批量处理** | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 |
-| **文档质量** | ⭐⭐⭐⭐ 良好 | ⭐⭐⭐⭐⭐ 优秀 | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐ 良好 |
-| **社区活跃度** | ⭐⭐⭐⭐ 活跃 | ⭐⭐⭐⭐⭐ 很活跃 | ⭐⭐⭐ 一般 | ⭐⭐⭐ 一般 |
-| **适合规模** | 小-中 | 中-大 | 中-企业 | 企业 |
-| **开源程度** | 完全开源 | 完全开源 | 开源 | 部分开源 |
+| 特性 | MailCow | Maddy | MailServer | BillionMail |
+|------|---------|-------|-----------|-------------|
+| **部署难度** | ⭐⭐⭐⭐⭐ 极易 | ⭐⭐⭐⭐⭐ 极易 | ⭐⭐⭐⭐ 容易 | ⭐⭐⭐ 中等 |
+| **资源占用** | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐⭐ 极低 | ⭐⭐⭐ 中等 | ⭐⭐⭐ 中等 |
+| **批量处理** | ⭐⭐⭐⭐⭐ 极佳 | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 | ⭐⭐⭐⭐ 优秀 |
+| **Web 管理** | ⭐⭐⭐⭐⭐ 完善 | ⭐⭐ 基础 | ⭐⭐⭐ 简单 | ⭐⭐⭐⭐ 良好 |
+| **API 支持** | ⭐⭐⭐⭐⭐ 完善 | ⭐⭐⭐ 基础 | ⭐⭐⭐ 基础 | ⭐⭐⭐⭐ 良好 |
+| **文档质量** | ⭐⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐ 良好 | ⭐⭐⭐⭐⭐ 优秀 | ⭐⭐⭐ 中等 |
+| **社区活跃度** | ⭐⭐⭐⭐⭐ 很活跃 | ⭐⭐⭐⭐ 活跃 | ⭐⭐⭐⭐⭐ 很活跃 | ⭐⭐⭐ 一般 |
+| **适合规模** | 小-企业 | 小-中 | 中-大 | 中-企业 |
+| **开源程度** | 完全开源 | 完全开源 | 完全开源 | 开源 |
 
-### 快速开始指南（使用 Maddy）
+### 快速开始指南（使用 MailCow）
 
-**1. 安装 Maddy：**
+**完整指南请查看：[MailCow 部署指南](docs/mailcow-setup.md)**
+
+**1. 安装 MailCow：**
 ```bash
 # Docker 方式（推荐）
-docker run -d --name maddy \
-  -p 25:25 -p 587:587 -p 993:993 \
-  -v /opt/maddy:/data \
-  foxcpp/maddy:latest
+cd /opt
+git clone https://github.com/mailcow/mailcow-dockerized
+cd mailcow-dockerized
+./generate_config.sh
 
-# 或使用包管理器
-# Ubuntu/Debian
-apt install maddy
+# 启动所有服务
+docker compose up -d
 
-# Arch Linux
+# 访问 Web 管理界面
+# https://mail.yourdomain.com
+# 默认账号: admin / moohoo
+```
+
+**2. 批量创建邮箱（使用 API）：**
 pacman -S maddy
 ```
 

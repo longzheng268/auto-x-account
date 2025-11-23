@@ -2,7 +2,7 @@
 name = "auto-x-account"
 version = "0.1.0"
 edition = "2021"
-authors = ["longzheng268", "Auto X Account Team"]
+authors = ["PA733 (Developer & Business)", "longzheng268", "Auto X Account Team"]
 description = "专有商业软件 - 自动化 X (Twitter) 账号注册系统 (Proprietary Commercial Software)"
 license = "Proprietary"
 readme = "README.md"
@@ -34,6 +34,19 @@ egui = "0.25"
 egui_extras = { version = "0.25", features = ["image"] }
 rfd = "0.13"
 image = "0.24"
+
+# Windows 平台依赖 - 修复 winapi 功能特性缺失问题
+# 显式启用 winapi 的所有必要功能，确保 eframe 能正确编译
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = [
+    "winuser",      # 用户界面功能
+    "windef",       # Windows 基本定义
+    "wingdi",       # 图形设备接口
+    "winbase",      # Windows 基础 API
+    "windowsx",     # Windows 扩展宏
+    "shellapi",     # Shell API
+    "libloaderapi", # 库加载 API
+] }
 
 [profile.release]
 opt-level = 3
