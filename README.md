@@ -325,12 +325,183 @@ rm -rf browser_data screenshots logs accounts.json config.json
 
 ### 邮箱服务提供商
 
-支持以下邮箱服务：
+本系统支持以下邮箱服务：
 
-1. **mail.tm** - 免费临时邮箱 API（推荐）
+1. **mail.tm** - 免费临时邮箱 API（推荐用于测试）
 2. **Guerrilla Mail** - 老牌临时邮箱服务
-3. **自建 SMTP** - 完全自主控制（最稳定）
+3. **自建 SMTP** - 完全自主控制（推荐用于生产）
 4. **自定义** - 使用自己的邮箱服务
+
+### 推荐的自建邮箱系统
+
+根据本系统的使用场景和需求，我们推荐以下邮箱系统：
+
+#### 🥇 首选：Maddy Mail Server
+
+**推荐理由：**
+- ✅ **开箱即用**：单一二进制文件，配置简单
+- ✅ **轻量级**：资源占用少，适合批量注册场景
+- ✅ **现代化**：使用 Go 语言开发，性能优秀
+- ✅ **开源免费**：MIT 许可证，无商业限制
+- ✅ **SMTP/IMAP 完整支持**：满足自动化接收验证码需求
+
+**适用场景：**
+- 中小规模批量注册（每天 100-1000 个账号）
+- 需要快速部署和维护
+- 资源受限的环境（如个人服务器、VPS）
+
+**Docker 部署示例：**
+```bash
+# 1. 拉取镜像
+docker pull foxcpp/maddy:latest
+
+# 2. 创建配置目录
+mkdir -p /opt/maddy/data
+
+# 3. 运行容器
+docker run -d \
+  --name maddy \
+  -p 25:25 \
+  -p 587:587 \
+  -p 993:993 \
+  -v /opt/maddy/data:/data \
+  foxcpp/maddy:latest
+
+# 4. 配置与本系统集成
+# 在 config.json 中配置：
+# "smtp": {
+#   "host": "your-server-ip",
+#   "port": 25,
+#   "domain": "your-domain.com",
+#   "enable": true
+# }
+```
+
+#### 🥈 备选：MailServer (Docker Mailserver)
+
+**推荐理由：**
+- ✅ **功能完整**：包含 Postfix + Dovecot + SpamAssassin
+- ✅ **Docker 友好**：容器化部署，易于管理
+- ✅ **社区活跃**：文档完善，问题容易解决
+- ✅ **适合生产**：稳定可靠，支持大规模部署
+
+**适用场景：**
+- 大规模批量注册（每天 1000+ 个账号）
+- 需要完整的邮件服务功能
+- 有一定运维经验的团队
+
+**Docker 部署示例：**
+```bash
+# 使用 docker-mailserver
+docker run -d \
+  --name mailserver \
+  -p 25:25 -p 143:143 -p 587:587 -p 993:993 \
+  -v /opt/mailserver/data:/var/mail \
+  -v /opt/mailserver/config:/tmp/docker-mailserver \
+  -e ENABLE_SPAMASSASSIN=0 \
+  -e ENABLE_CLAMAV=0 \
+  docker.io/mailserver/docker-mailserver:latest
+```
+
+#### 🥉 第三选择：BillionMail（适合企业级）
+
+**推荐理由：**
+- ✅ **营销功能**：内置电子邮件营销功能
+- ✅ **开发者友好**：API 支持完善
+- ✅ **自托管**：完全控制数据和隐私
+
+**适用场景：**
+- 需要邮件营销功能
+- 企业级部署需求
+- 对 API 集成有更高要求
+
+#### ❌ 不推荐的方案
+
+**RoundCube**：这是一个邮件客户端（Webmail），不是邮件服务器，无法满足本系统需求。
+
+**Axigen**：虽然功能强大，但配置复杂，对于批量注册场景过于重量级。
+
+### 邮箱系统对比表
+
+| 特性 | Maddy | MailServer | BillionMail | Axigen |
+|------|-------|-----------|-------------|---------|
+| **部署难度** | ⭐⭐⭐⭐⭐ 极易 | ⭐⭐⭐⭐ 容易 | ⭐⭐⭐ 中等 | ⭐⭐ 复杂 |
+| **资源占用** | ⭐⭐⭐⭐⭐ 极低 | ⭐⭐⭐ 中等 | ⭐⭐⭐ 中等 | ⭐⭐ 较高 |
+| **批量处理** | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 | ⭐⭐⭐⭐ 优秀 | ⭐⭐⭐⭐⭐ 极佳 |
+| **文档质量** | ⭐⭐⭐⭐ 良好 | ⭐⭐⭐⭐⭐ 优秀 | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐ 良好 |
+| **社区活跃度** | ⭐⭐⭐⭐ 活跃 | ⭐⭐⭐⭐⭐ 很活跃 | ⭐⭐⭐ 一般 | ⭐⭐⭐ 一般 |
+| **适合规模** | 小-中 | 中-大 | 中-企业 | 企业 |
+| **开源程度** | 完全开源 | 完全开源 | 开源 | 部分开源 |
+
+### 快速开始指南（使用 Maddy）
+
+**1. 安装 Maddy：**
+```bash
+# Docker 方式（推荐）
+docker run -d --name maddy \
+  -p 25:25 -p 587:587 -p 993:993 \
+  -v /opt/maddy:/data \
+  foxcpp/maddy:latest
+
+# 或使用包管理器
+# Ubuntu/Debian
+apt install maddy
+
+# Arch Linux
+pacman -S maddy
+```
+
+**2. 配置 Maddy：**
+```bash
+# 编辑配置文件
+sudo nano /etc/maddy/maddy.conf
+
+# 基本配置示例：
+# hostname your-domain.com
+# tls off  # 本地测试可关闭 TLS
+```
+
+**3. 配置本系统：**
+
+在 `config.json` 中配置：
+```json
+{
+  "smtp": {
+    "host": "127.0.0.1",  # 或你的服务器 IP
+    "port": 25,
+    "domain": "your-domain.com",
+    "enable": true
+  }
+}
+```
+
+**4. 测试邮件接收：**
+```bash
+# 运行本系统
+./auto-x-account register --email test@your-domain.com
+```
+
+### 生产环境建议
+
+**安全配置：**
+1. ✅ 启用 TLS/SSL 加密
+2. ✅ 配置 SPF、DKIM、DMARC 记录
+3. ✅ 使用独立域名（避免主域名被封）
+4. ✅ 限制连接速率，避免被识别为垃圾邮件
+5. ✅ 定期清理旧邮件，节省存储空间
+
+**监控和维护：**
+- 监控邮件队列长度
+- 检查邮件服务器日志
+- 定期更新系统和软件
+- 备份邮件数据
+
+**推荐的域名策略：**
+- 使用二级域名：`mail.yourdomain.com`
+- 准备多个备用域名
+- 避免使用主业务域名
+
+
 
 ## 🎨 界面预览
 

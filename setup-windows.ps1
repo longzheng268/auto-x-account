@@ -266,6 +266,13 @@ function Configure-MinGWPath {
     Write-Host "配置 MinGW 环境变量..." -ForegroundColor Green
     Write-Host "Configuring MinGW environment..." -ForegroundColor Green
     
+    # 检查 Scoop 是否可用
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        Write-Host "警告: Scoop 未安装或不在 PATH 中" -ForegroundColor Yellow
+        Write-Host "Warning: Scoop is not installed or not in PATH" -ForegroundColor Yellow
+        return $false
+    }
+    
     $msys2Root = scoop prefix msys2 2>$null
     if ($msys2Root -and (Test-Path "$msys2Root\mingw64\bin")) {
         $mingwBin = "$msys2Root\mingw64\bin"
