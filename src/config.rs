@@ -55,6 +55,34 @@ pub struct EmailProviderSettings {
     /// 生产域名列表（必须配置）
     #[serde(default)]
     pub production_domains: Vec<String>,
+    /// 当前选择的提供商（用于GUI）
+    /// Current selected provider (for GUI)
+    #[serde(default)]
+    pub selected_provider: String,
+    /// 自定义提供商的SMTP配置
+    /// Custom provider SMTP configuration
+    #[serde(default)]
+    pub custom_smtp_host: Option<String>,
+    #[serde(default)]
+    pub custom_smtp_port: Option<u16>,
+    /// 自定义提供商的IMAP配置
+    /// Custom provider IMAP configuration
+    #[serde(default)]
+    pub custom_imap_host: Option<String>,
+    #[serde(default)]
+    pub custom_imap_port: Option<u16>,
+    /// 自定义提供商的用户名
+    #[serde(default)]
+    pub custom_username: Option<String>,
+    /// 自定义提供商的密码
+    #[serde(default)]
+    pub custom_password: Option<String>,
+    /// 自定义提供商的API密钥
+    #[serde(default)]
+    pub custom_api_key: Option<String>,
+    /// 自定义提供商的API端点
+    #[serde(default)]
+    pub custom_api_endpoint: Option<String>,
 }
 
 /// 人机验证配置
@@ -590,6 +618,38 @@ impl Config {
             )
         }
     }
+
+    /// 根据配置创建邮箱提供商配置
+    /// Create email provider config from settings
+    pub fn get_email_provider_config(&self) -> crate::email_provider::EmailProviderConfig {
+        use crate::email_provider::EmailProvider;
+
+        let provider = match EmailProvider::from_str(&self.email_provider.selected_provider) {
+            Some(p) => p,
+            None => {
+                tracing::warn!(
+                    "Invalid email provider '{}', falling back to MailTm",
+                    self.email_provider.selected_provider
+                );
+                EmailProvider::MailTm
+            }
+        };
+
+        crate::email_provider::EmailProviderConfig {
+            provider,
+            smtp_host: self.email_provider.custom_smtp_host.clone()
+                .or_else(|| Some(self.smtp.host.clone())),
+            smtp_port: self.email_provider.custom_smtp_port
+                .or(Some(self.smtp.port)),
+            imap_host: self.email_provider.custom_imap_host.clone(),
+            imap_port: self.email_provider.custom_imap_port,
+            username: self.email_provider.custom_username.clone(),
+            password: self.email_provider.custom_password.clone(),
+            domain: self.smtp.domain.clone(),
+            api_key: self.email_provider.custom_api_key.clone(),
+            api_endpoint: self.email_provider.custom_api_endpoint.clone(),
+        }
+    }
 }
 
 impl Default for Config {
@@ -652,6 +712,15 @@ impl Default for EmailProviderSettings {
                 "GuerrillaMail".to_string(),
             ],
             production_domains: vec!["example.com".to_string()],
+            selected_provider: "MailTm".to_string(),
+            custom_smtp_host: None,
+            custom_smtp_port: None,
+            custom_imap_host: None,
+            custom_imap_port: None,
+            custom_username: None,
+            custom_password: None,
+            custom_api_key: None,
+            custom_api_endpoint: None,
         }
     }
 }

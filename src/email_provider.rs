@@ -38,6 +38,49 @@ pub enum EmailProvider {
     Custom,
 }
 
+impl EmailProvider {
+    /// 从字符串解析邮箱提供商
+    /// Parse email provider from string
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "SelfHosted" => Some(EmailProvider::SelfHosted),
+            "MailTm" => Some(EmailProvider::MailTm),
+            "GuerrillaMail" => Some(EmailProvider::GuerrillaMail),
+            "TempMail" => Some(EmailProvider::TempMail),
+            "TenMinuteMail" => Some(EmailProvider::TenMinuteMail),
+            "DropMail" => Some(EmailProvider::DropMail),
+            "Mailinator" => Some(EmailProvider::Mailinator),
+            "Outlook" => Some(EmailProvider::Outlook),
+            "Gmail" => Some(EmailProvider::Gmail),
+            "Yahoo" => Some(EmailProvider::Yahoo),
+            "ProtonMail" => Some(EmailProvider::ProtonMail),
+            "ZohoMail" => Some(EmailProvider::ZohoMail),
+            "Custom" => Some(EmailProvider::Custom),
+            _ => None,
+        }
+    }
+
+    /// 转换为字符串
+    /// Convert to string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EmailProvider::SelfHosted => "SelfHosted",
+            EmailProvider::MailTm => "MailTm",
+            EmailProvider::GuerrillaMail => "GuerrillaMail",
+            EmailProvider::TempMail => "TempMail",
+            EmailProvider::TenMinuteMail => "TenMinuteMail",
+            EmailProvider::DropMail => "DropMail",
+            EmailProvider::Mailinator => "Mailinator",
+            EmailProvider::Outlook => "Outlook",
+            EmailProvider::Gmail => "Gmail",
+            EmailProvider::Yahoo => "Yahoo",
+            EmailProvider::ProtonMail => "ProtonMail",
+            EmailProvider::ZohoMail => "ZohoMail",
+            EmailProvider::Custom => "Custom",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailProviderConfig {
     pub provider: EmailProvider,
