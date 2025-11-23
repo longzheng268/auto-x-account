@@ -37,6 +37,17 @@ pub enum ProxyMode {
     Manual,
 }
 
+/// 代理目标
+/// Proxy target
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProxyTarget {
+    /// 浏览器代理
+    Browser,
+    /// 邮箱代理
+    Email,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
     /// 代理模式: none, system, manual
@@ -52,6 +63,20 @@ pub struct ProxyConfig {
     pub username: Option<String>,
     /// 密码（可选）
     pub password: Option<String>,
+    /// 浏览器是否使用代理
+    #[serde(default = "default_true")]
+    pub browser_enabled: bool,
+    /// 邮箱是否使用代理
+    #[serde(default = "default_false")]
+    pub email_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_false() -> bool {
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,8 +135,15 @@ impl Config {
     }
 
     /// 获取代理 URL
-    /// Get proxy URL based on proxy mode
-    pub fn get_proxy_url(&self) -> Option<String> {
+    /// Get proxy URL based on proxy mode and target
+    pub fn get_proxy_url(&self, target: ProxyTarget) -> Option<String> {
+        // 检查目标是否启用代理
+        match target {
+            ProxyTarget::Browser if !self.proxy.browser_enabled => return None,
+            ProxyTarget::Email if !self.proxy.email_enabled => return None,
+            _ => {}
+        }
+
         match self.proxy.mode {
             ProxyMode::None => None,
             ProxyMode::System => {
@@ -306,20 +338,37 @@ impl Config {
 
     /// 获取代理描述（用于显示）
     /// Get proxy description for display
-    pub fn get_proxy_description(&self) -> String {
+    pub fn get_proxy_description(&self, target: ProxyTarget) -> String {
+        let target_str = match target {
+            ProxyTarget::Browser => "浏览器 / Browser",
+            ProxyTarget::Email => "邮箱 / Email",
+        };
+
+        let enabled = match target {
+            ProxyTarget::Browser => self.proxy.browser_enabled,
+            ProxyTarget::Email => self.proxy.email_enabled,
+        };
+
+        if !enabled {
+            return format!("{}: 未启用代理 / Proxy disabled", target_str);
+        }
+
         match self.proxy.mode {
-            ProxyMode::None => "不使用代理 / No Proxy".to_string(),
+            ProxyMode::None => format!("{}: 不使用代理 / No Proxy", target_str),
             ProxyMode::System => {
-                if let Some(proxy) = self.get_proxy_url() {
-                    format!("系统代理 / System Proxy: {}", proxy)
+                if let Some(proxy) = self.get_proxy_url(target) {
+                    format!("{}: 系统代理 / System Proxy: {}", target_str, proxy)
                 } else {
-                    "系统代理（未检测到）/ System Proxy (Not Detected)".to_string()
+                    format!(
+                        "{}: 系统代理（未检测到）/ System Proxy (Not Detected)",
+                        target_str
+                    )
                 }
             }
             ProxyMode::Manual => {
                 format!(
-                    "手动代理 / Manual Proxy: {}://{}:{}",
-                    self.proxy.proxy_type, self.proxy.host, self.proxy.port
+                    "{}: 手动代理 / Manual Proxy: {}://{}:{}",
+                    target_str, self.proxy.proxy_type, self.proxy.host, self.proxy.port
                 )
             }
         }
@@ -343,6 +392,8 @@ impl Default for Config {
                 port: 1080,
                 username: None,
                 password: None,
+                browser_enabled: true,
+                email_enabled: false,
             },
             browser: BrowserConfig {
                 headless: false,

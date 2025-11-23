@@ -3,6 +3,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
@@ -29,7 +30,7 @@ pub enum BatchStatus {
 }
 
 /// 批量注册任务
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BatchTask {
     pub id: String,
     pub total_count: usize,
@@ -62,6 +63,109 @@ impl BatchRegistrationManager {
             tasks: Arc::new(Mutex::new(Vec::new())),
             accounts: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// 获取缓存目录路径
+    /// Get cache directory path based on OS
+    fn cache_dir() -> PathBuf {
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: %APPDATA%\auto-x-account
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                PathBuf::from(appdata).join("auto-x-account")
+            } else {
+                PathBuf::from("./data")
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // macOS: ~/Library/Application Support/auto-x-account
+            if let Ok(home) = std::env::var("HOME") {
+                PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("auto-x-account")
+            } else {
+                PathBuf::from("./data")
+            }
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            // Linux/Unix: ~/.local/share/auto-x-account
+            if let Ok(home) = std::env::var("HOME") {
+                PathBuf::from(home)
+                    .join(".local")
+                    .join("share")
+                    .join("auto-x-account")
+            } else if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
+                PathBuf::from(xdg_data_home).join("auto-x-account")
+            } else {
+                PathBuf::from("./data")
+            }
+        }
+    }
+
+    /// 确保缓存目录存在
+    /// Ensure cache directory exists
+    fn ensure_cache_dir() -> Result<PathBuf> {
+        let dir = Self::cache_dir();
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir)?;
+            info!("创建缓存目录 / Created cache directory: {}", dir.display());
+        }
+        Ok(dir)
+    }
+
+    /// 持久化任务数据
+    /// Persist tasks data
+    async fn persist_tasks(&self) -> Result<()> {
+        let dir = Self::ensure_cache_dir()?;
+        let path = dir.join("tasks.json");
+        let tasks = self.tasks.lock().await;
+        let json = serde_json::to_string_pretty(&*tasks)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    /// 持久化账号数据
+    /// Persist accounts data
+    async fn persist_accounts(&self) -> Result<()> {
+        let dir = Self::ensure_cache_dir()?;
+        let path = dir.join("accounts.json");
+        let accounts = self.accounts.lock().await;
+        let json = serde_json::to_string_pretty(&*accounts)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    /// 从缓存加载数据
+    /// Load data from cache
+    pub async fn load_from_cache(&self) -> Result<()> {
+        let dir = Self::cache_dir();
+        
+        // 加载任务数据
+        let tasks_path = dir.join("tasks.json");
+        if tasks_path.exists() {
+            let data = std::fs::read_to_string(tasks_path)?;
+            let list: Vec<BatchTask> = serde_json::from_str(&data)?;
+            let mut tasks = self.tasks.lock().await;
+            *tasks = list;
+            info!("已从缓存加载 {} 个任务 / Loaded {} tasks from cache", tasks.len(), tasks.len());
+        }
+
+        // 加载账号数据
+        let accounts_path = dir.join("accounts.json");
+        if accounts_path.exists() {
+            let data = std::fs::read_to_string(accounts_path)?;
+            let list: Vec<AccountInfo> = serde_json::from_str(&data)?;
+            let mut accounts = self.accounts.lock().await;
+            *accounts = list;
+            info!("已从缓存加载 {} 个账号 / Loaded {} accounts from cache", accounts.len(), accounts.len());
+        }
+
+        Ok(())
     }
 
     /// 开始批量注册任务
@@ -192,6 +296,9 @@ impl BatchRegistrationManager {
             }
             task.updated_at = chrono::Utc::now().to_rfc3339();
         }
+        drop(tasks);
+        // 自动持久化
+        let _ = self.persist_tasks().await;
     }
 
     /// 完成任务
@@ -201,12 +308,18 @@ impl BatchRegistrationManager {
             task.status = BatchStatus::Completed;
             task.updated_at = chrono::Utc::now().to_rfc3339();
         }
+        drop(tasks);
+        // 自动持久化
+        let _ = self.persist_tasks().await;
     }
 
     /// 保存账号信息
     async fn save_account(&self, account: AccountInfo) {
         let mut accounts = self.accounts.lock().await;
         accounts.push(account);
+        drop(accounts);
+        // 自动持久化
+        let _ = self.persist_accounts().await;
     }
 
     /// 获取所有任务
