@@ -624,8 +624,16 @@ impl Config {
     pub fn get_email_provider_config(&self) -> crate::email_provider::EmailProviderConfig {
         use crate::email_provider::EmailProvider;
 
-        let provider = EmailProvider::from_str(&self.email_provider.selected_provider)
-            .unwrap_or(EmailProvider::MailTm);
+        let provider = match EmailProvider::from_str(&self.email_provider.selected_provider) {
+            Some(p) => p,
+            None => {
+                tracing::warn!(
+                    "Invalid email provider '{}', falling back to MailTm",
+                    self.email_provider.selected_provider
+                );
+                EmailProvider::MailTm
+            }
+        };
 
         crate::email_provider::EmailProviderConfig {
             provider,

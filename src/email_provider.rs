@@ -61,22 +61,22 @@ impl EmailProvider {
     }
 
     /// 转换为字符串
-    /// Convert to string
-    pub fn to_string(&self) -> String {
+    /// Convert to string representation
+    pub fn as_str(&self) -> &'static str {
         match self {
-            EmailProvider::SelfHosted => "SelfHosted".to_string(),
-            EmailProvider::MailTm => "MailTm".to_string(),
-            EmailProvider::GuerrillaMail => "GuerrillaMail".to_string(),
-            EmailProvider::TempMail => "TempMail".to_string(),
-            EmailProvider::TenMinuteMail => "TenMinuteMail".to_string(),
-            EmailProvider::DropMail => "DropMail".to_string(),
-            EmailProvider::Mailinator => "Mailinator".to_string(),
-            EmailProvider::Outlook => "Outlook".to_string(),
-            EmailProvider::Gmail => "Gmail".to_string(),
-            EmailProvider::Yahoo => "Yahoo".to_string(),
-            EmailProvider::ProtonMail => "ProtonMail".to_string(),
-            EmailProvider::ZohoMail => "ZohoMail".to_string(),
-            EmailProvider::Custom => "Custom".to_string(),
+            EmailProvider::SelfHosted => "SelfHosted",
+            EmailProvider::MailTm => "MailTm",
+            EmailProvider::GuerrillaMail => "GuerrillaMail",
+            EmailProvider::TempMail => "TempMail",
+            EmailProvider::TenMinuteMail => "TenMinuteMail",
+            EmailProvider::DropMail => "DropMail",
+            EmailProvider::Mailinator => "Mailinator",
+            EmailProvider::Outlook => "Outlook",
+            EmailProvider::Gmail => "Gmail",
+            EmailProvider::Yahoo => "Yahoo",
+            EmailProvider::ProtonMail => "ProtonMail",
+            EmailProvider::ZohoMail => "ZohoMail",
+            EmailProvider::Custom => "Custom",
         }
     }
 }

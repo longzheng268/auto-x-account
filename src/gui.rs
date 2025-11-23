@@ -6,6 +6,16 @@ use eframe::egui;
 use egui::{Color32, FontId, RichText, Rounding, Stroke, Vec2};
 use std::sync::{Arc, Mutex};
 
+/// Helper function to convert empty string to None
+/// 辅助函数：将空字符串转换为 None
+fn empty_string_to_none(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
 /// 中国风配色方案
 /// Chinese-style color scheme
 pub struct ChineseColorScheme {
@@ -281,9 +291,13 @@ impl AutoXAccountApp {
                 if ui.add(button).clicked() {
                     // TODO: 触发注册流程
                     // 如果是自动生成模式，先生成邮箱
+                    // NOTE: This requires async runtime integration - see IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
+                    // 这需要异步运行时集成 - 参见 IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
                     if !state.email_manual_mode {
                         state.status = "正在生成临时邮箱...".to_string();
                         // 这里应该调用后端API生成邮箱
+                        // This should call backend API to generate email
+                        // Implementation pending: async runtime integration needed
                     }
                 }
             });
@@ -560,7 +574,7 @@ impl AutoXAccountApp {
                                 ui.label("主机:");
                                 let mut host = state.config.email_provider.custom_smtp_host.clone().unwrap_or_default();
                                 if ui.text_edit_singleline(&mut host).changed() {
-                                    state.config.email_provider.custom_smtp_host = if host.is_empty() { None } else { Some(host) };
+                                    state.config.email_provider.custom_smtp_host = empty_string_to_none(host);
                                 }
                             });
                             ui.horizontal(|ui| {
@@ -577,7 +591,7 @@ impl AutoXAccountApp {
                                 ui.label("主机:");
                                 let mut host = state.config.email_provider.custom_imap_host.clone().unwrap_or_default();
                                 if ui.text_edit_singleline(&mut host).changed() {
-                                    state.config.email_provider.custom_imap_host = if host.is_empty() { None } else { Some(host) };
+                                    state.config.email_provider.custom_imap_host = empty_string_to_none(host);
                                 }
                             });
                             ui.horizontal(|ui| {
@@ -594,14 +608,14 @@ impl AutoXAccountApp {
                                 ui.label("用户名:");
                                 let mut username = state.config.email_provider.custom_username.clone().unwrap_or_default();
                                 if ui.text_edit_singleline(&mut username).changed() {
-                                    state.config.email_provider.custom_username = if username.is_empty() { None } else { Some(username) };
+                                    state.config.email_provider.custom_username = empty_string_to_none(username);
                                 }
                             });
                             ui.horizontal(|ui| {
                                 ui.label("密码:");
                                 let mut password = state.config.email_provider.custom_password.clone().unwrap_or_default();
                                 if ui.add(egui::TextEdit::singleline(&mut password).password(true)).changed() {
-                                    state.config.email_provider.custom_password = if password.is_empty() { None } else { Some(password) };
+                                    state.config.email_provider.custom_password = empty_string_to_none(password);
                                 }
                             });
 
@@ -618,7 +632,7 @@ impl AutoXAccountApp {
                                 ui.label("API Endpoint:");
                                 let mut endpoint = state.config.email_provider.custom_api_endpoint.clone().unwrap_or_default();
                                 if ui.text_edit_singleline(&mut endpoint).changed() {
-                                    state.config.email_provider.custom_api_endpoint = if endpoint.is_empty() { None } else { Some(endpoint) };
+                                    state.config.email_provider.custom_api_endpoint = empty_string_to_none(endpoint);
                                 }
                             });
                         }
