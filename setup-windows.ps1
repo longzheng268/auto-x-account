@@ -41,13 +41,25 @@ function Test-CompleteEnvironment {
         Write-Host "✓ Rust 已安装: $rustVersion" -ForegroundColor Green
         $hasRust = $true
         
-        # 检查工具链配置
+        # 检查当前激活的默认工具链（而不仅仅是安装了哪些工具链）
         $toolchainInfo = rustup show 2>&1 | Out-String
-        if ($toolchainInfo -match "x86_64-pc-windows-gnu") {
+        
+        # 优先检查 "active toolchain" 或 "default toolchain"
+        if ($toolchainInfo -match "(?:active|default) toolchain[\s\S]*?stable-x86_64-pc-windows-gnu") {
+            $toolchainType = "GNU"
+            Write-Host "✓ 检测到 GNU 工具链 (MinGW-w64)" -ForegroundColor Green
+            $hasToolchain = $true
+        } elseif ($toolchainInfo -match "(?:active|default) toolchain[\s\S]*?stable-x86_64-pc-windows-msvc") {
+            $toolchainType = "MSVC"
+            Write-Host "✓ 检测到 MSVC 工具链" -ForegroundColor Green
+            $hasToolchain = $true
+        } elseif ($toolchainInfo -match "x86_64-pc-windows-gnu") {
+            # 回退：如果找不到默认工具链信息，但有 GNU 工具链
             $toolchainType = "GNU"
             Write-Host "✓ 检测到 GNU 工具链 (MinGW-w64)" -ForegroundColor Green
             $hasToolchain = $true
         } elseif ($toolchainInfo -match "x86_64-pc-windows-msvc") {
+            # 回退：如果找不到默认工具链信息，但有 MSVC 工具链
             $toolchainType = "MSVC"
             Write-Host "✓ 检测到 MSVC 工具链" -ForegroundColor Green
             $hasToolchain = $true
@@ -355,9 +367,19 @@ if ($envCheck.HasEnvironment) {
         Write-Host ""
         
         if (Test-Path "Cargo.toml") {
-            Write-Host "正在编译 (release 模式)..." -ForegroundColor Green
-            Write-Host "Building (release mode)..." -ForegroundColor Green
-            cargo build --release
+            # 根据检测到的工具链类型选择编译命令
+            if ($envCheck.ToolchainType -eq "GNU") {
+                Write-Host "正在使用 GNU 工具链编译 (release 模式)..." -ForegroundColor Green
+                Write-Host "Building with GNU toolchain (release mode)..." -ForegroundColor Green
+                # 明确指定工具链和目标，避免 cargo 尝试同步 MSVC
+                cargo +stable-x86_64-pc-windows-gnu build --release --target x86_64-pc-windows-gnu
+                $targetPath = "x86_64-pc-windows-gnu\release"
+            } else {
+                Write-Host "正在编译 (release 模式)..." -ForegroundColor Green
+                Write-Host "Building (release mode)..." -ForegroundColor Green
+                cargo build --release
+                $targetPath = "release"
+            }
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Host ""
@@ -365,7 +387,7 @@ if ($envCheck.HasEnvironment) {
                 Write-Host "Build successful!" -ForegroundColor Green
                 Write-Host ""
                 
-                $exePath = Join-Path -Path ".\target\release" -ChildPath "$script:projectName.exe"
+                $exePath = Join-Path -Path ".\target\$targetPath" -ChildPath "$script:projectName.exe"
                 if (Test-Path $exePath) {
                     Write-Host "是否立即运行程序？(Y/N)" -ForegroundColor Cyan
                     Write-Host "Run the program now? (Y/N)" -ForegroundColor Cyan
