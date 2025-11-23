@@ -5,6 +5,7 @@
 //! Supports SMTP email verification, proxy access, multi-language UI, batch registration
 
 mod batch;
+mod bitbrowser;
 mod browser_detector;
 mod captcha;
 mod config;

@@ -18,6 +18,7 @@
     "email_enabled": false
   },
   "browser": {
+    "browser_type": "native",
     "headless": false,
     "timeout": 30000,
     "viewport": {
@@ -25,7 +26,14 @@
       "height": 720
     },
     "user_data_dir": "browser_data",
-    "chrome_path": null
+    "chrome_path": null,
+    "bitbrowser": {
+      "api_url": "http://127.0.0.1",
+      "api_port": 54345,
+      "profile_ids": [],
+      "auto_create_profile": true,
+      "separate_profile_per_account": true
+    }
   },
   "x_account": {
     "base_url": "https://twitter.com/i/flow/signup",
