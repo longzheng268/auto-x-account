@@ -94,8 +94,20 @@ impl AutoXAccountApp {
         // 配置视觉样式
         Self::configure_style(&cc.egui_ctx);
 
+        // 从数据目录加载配置
+        let config = match crate::data_dir::load_or_create_config() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!("加载配置失败，使用默认配置: {}", e);
+                crate::config::Config::default()
+            }
+        };
+
         AutoXAccountApp {
-            state: Arc::new(Mutex::new(AppState::default())),
+            state: Arc::new(Mutex::new(AppState {
+                config,
+                ..Default::default()
+            })),
             colors: ChineseColorScheme::default(),
         }
     }
@@ -961,7 +973,117 @@ impl AutoXAccountApp {
                     );
                     ui.add_space(8.0);
 
+                    // 浏览器类型选择
+                    ui.horizontal(|ui| {
+                        ui.label("浏览器类型:");
+                        ui.radio_value(
+                            &mut state.config.browser.browser_type,
+                            crate::config::BrowserType::Native,
+                            "原生 Chrome/Chromium",
+                        );
+                        ui.radio_value(
+                            &mut state.config.browser.browser_type,
+                            crate::config::BrowserType::BitBrowser,
+                            "BitBrowser (指纹浏览器)",
+                        );
+                    });
+
+                    ui.add_space(8.0);
+
+                    // BitBrowser 配置（仅在选择 BitBrowser 时显示）
+                    if state.config.browser.browser_type == crate::config::BrowserType::BitBrowser {
+                        ui.group(|ui| {
+                            ui.label(
+                                RichText::new("🔧 BitBrowser 配置")
+                                    .size(16.0)
+                                    .color(self.colors.primary)
+                                    .strong(),
+                            );
+                            ui.add_space(8.0);
+
+                            // 如果 bitbrowser 配置为 None，创建默认值
+                            if state.config.browser.bitbrowser.is_none() {
+                                state.config.browser.bitbrowser = 
+                                    Some(crate::config::BitBrowserConfig::default());
+                            }
+
+                            if let Some(ref mut bb_config) = state.config.browser.bitbrowser {
+                                ui.horizontal(|ui| {
+                                    ui.label("API 地址:");
+                                    ui.text_edit_singleline(&mut bb_config.api_url);
+                                });
+                                
+                                ui.horizontal(|ui| {
+                                    ui.label("API 端口:");
+                                    ui.add(egui::DragValue::new(&mut bb_config.api_port).speed(1));
+                                });
+
+                                ui.add_space(8.0);
+                                ui.checkbox(
+                                    &mut bb_config.auto_create_profile,
+                                    "自动创建配置文件（如果没有可用的）",
+                                );
+                                ui.checkbox(
+                                    &mut bb_config.separate_profile_per_account,
+                                    "每个账号使用独立配置文件",
+                                );
+
+                                ui.add_space(8.0);
+                                ui.label(RichText::new("预定义配置文件 ID:").size(14.0));
+                                ui.label(
+                                    RichText::new("(留空则自动创建，每行一个ID)")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary),
+                                );
+
+                                // 将 profile_ids Vec 转换为文本用于编辑
+                                let mut profile_ids_text = bb_config.profile_ids.join("\n");
+                                if ui
+                                    .add(
+                                        egui::TextEdit::multiline(&mut profile_ids_text)
+                                            .desired_rows(3)
+                                            .desired_width(400.0),
+                                    )
+                                    .changed()
+                                {
+                                    // 将文本转换回 Vec
+                                    bb_config.profile_ids = profile_ids_text
+                                        .lines()
+                                        .filter(|line| !line.trim().is_empty())
+                                        .map(|line| line.trim().to_string())
+                                        .collect();
+                                }
+
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new("ℹ 确保 BitBrowser 已启动并运行在配置的端口上")
+                                        .size(13.0)
+                                        .color(self.colors.text_secondary),
+                                );
+                            }
+                        });
+                        ui.add_space(8.0);
+                    }
+
+                    // 通用浏览器配置
                     ui.checkbox(&mut state.config.browser.headless, "无头模式 (后台运行)");
+                    
+                    // Chrome 路径配置（仅在原生模式下显示）
+                    if state.config.browser.browser_type == crate::config::BrowserType::Native {
+                        ui.horizontal(|ui| {
+                            ui.label("Chrome 路径 (可选):");
+                            let mut chrome_path = state
+                                .config
+                                .browser
+                                .chrome_path
+                                .clone()
+                                .unwrap_or_default();
+                            if ui.text_edit_singleline(&mut chrome_path).changed() {
+                                state.config.browser.chrome_path = empty_string_to_none(chrome_path);
+                            }
+                        });
+                    }
+
                     ui.horizontal(|ui| {
                         ui.label("超时时间 (ms):");
                         ui.add(egui::DragValue::new(&mut state.config.browser.timeout).speed(100));
@@ -1008,13 +1130,62 @@ impl AutoXAccountApp {
                     ui.add_space(16.0);
 
                     // 保存按钮
-                    if ui.button(RichText::new("💾 保存设置").size(16.0)).clicked() {
-                        // 保存配置到文件
-                        if let Err(e) = state.config.to_file("config.json") {
-                            eprintln!("保存配置失败: {}", e);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new("💾 保存设置").size(16.0))
+                                    .fill(self.colors.primary),
+                            )
+                            .clicked()
+                        {
+                            // 保存配置到数据目录
+                            if let Err(e) = crate::data_dir::save_config(&state.config) {
+                                state.logs.push(format!("❌ 保存配置失败: {}", e));
+                            } else {
+                                state.logs.push("✅ 配置已保存".to_string());
+                                state.show_settings = false;
+                            }
                         }
-                        state.show_settings = false;
-                    }
+
+                        ui.add_space(8.0);
+
+                        if ui
+                            .add(egui::Button::new(RichText::new("❌ 取消").size(16.0)))
+                            .clicked()
+                        {
+                            state.show_settings = false;
+                        }
+
+                        ui.add_space(8.0);
+
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new("📂 打开数据目录").size(14.0))
+                                    .fill(self.colors.secondary),
+                            )
+                            .clicked()
+                        {
+                            // 打开数据目录
+                            let data_dir = crate::data_dir::get_data_dir();
+                            if let Err(e) = open::that(&data_dir) {
+                                state
+                                    .logs
+                                    .push(format!("❌ 无法打开数据目录: {}", e));
+                            }
+                        }
+                    });
+
+                    ui.add_space(8.0);
+                    
+                    // 显示数据目录位置
+                    ui.label(
+                        RichText::new(format!(
+                            "💾 数据保存位置: {}",
+                            crate::data_dir::get_data_dir().display()
+                        ))
+                        .size(12.0)
+                        .color(self.colors.text_secondary),
+                    );
                 });
             });
     }
