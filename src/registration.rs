@@ -22,6 +22,7 @@ pub struct AccountInfo {
     pub name: String,
     pub username: String,
     pub password: String,
+    pub phone: Option<String>,
     pub birth_date: BirthDate,
     pub created_at: String,
     pub status: String,
@@ -182,6 +183,7 @@ impl XRegistration {
             name,
             username,
             password,
+            phone: None,
             birth_date: BirthDate {
                 month: months[rng.gen_range(0..12)].to_string(),
                 day: rng.gen_range(1..29).to_string(),
@@ -197,49 +199,68 @@ impl XRegistration {
     pub async fn register_account(&self, email: String) -> Result<AccountInfo> {
         let mut account_info = self.generate_account_info(email.clone());
 
-        info!("开始注册账号: {}", account_info.email);
+        info!("🚀 开始注册账号 / Starting account registration");
+        info!("   邮箱 / Email: {}", account_info.email);
+        info!("   用户名 / Username: {}", account_info.username);
+        info!("   生日 / Birthday: {}/{}/{}", 
+            account_info.birth_date.month, 
+            account_info.birth_date.day, 
+            account_info.birth_date.year
+        );
 
         // 配置浏览器
+        info!("⚙️  配置浏览器 / Configuring browser...");
         let mut builder = BrowserConfig::builder();
 
         if !self.config.browser.headless {
             builder = builder.with_head();
+            info!("   模式 / Mode: 有界面 / With UI");
+        } else {
+            info!("   模式 / Mode: 无界面 / Headless");
         }
 
         // 设置 Chrome/Chromium 可执行文件路径
         // Set Chrome/Chromium executable path
         let chrome_path = self.get_chrome_executable_path()?;
         if let Some(path) = chrome_path {
-            info!("使用 Chromium 路径: {}", path.display());
+            info!("   浏览器路径 / Browser path: {}", path.display());
             builder = builder.chrome_executable(&path);
+        } else {
+            info!("   浏览器路径 / Browser path: 使用系统默认 / Using system default");
         }
 
         // 配置代理
         if let Some(proxy_url) = self.config.get_proxy_url(crate::config::ProxyTarget::Browser) {
-            info!("浏览器使用代理 / Browser using proxy: {}", proxy_url);
+            info!("   代理 / Proxy: {}", proxy_url);
             builder = builder.arg(format!("--proxy-server={}", proxy_url));
+        } else {
+            info!("   代理 / Proxy: 不使用 / Not using");
         }
 
         // 设置用户数据目录
-        let user_data_dir = PathBuf::from(&self.config.browser.user_data_dir);
+        let user_data_dir = crate::data_dir::get_browser_data_dir();
         std::fs::create_dir_all(&user_data_dir)?;
         builder = builder.user_data_dir(&user_data_dir);
+        info!("   数据目录 / Data directory: {}", user_data_dir.display());
 
         // 启动浏览器 / Launch browser
+        info!("🌐 启动浏览器 / Launching browser...");
         let (mut browser, mut handler) = Browser::launch(
             builder.build().map_err(|e| anyhow::anyhow!("Browser configuration error / 浏览器配置错误: {}", e))?
         ).await?;
+        info!("✅ 浏览器已启动 / Browser launched successfully");
 
         // 处理浏览器事件
         tokio::spawn(async move {
             while let Some(event) = handler.next().await {
                 if let Err(e) = event {
-                    error!("浏览器事件错误: {}", e);
+                    error!("浏览器事件错误 / Browser event error: {}", e);
                 }
             }
         });
 
         // 创建新页面
+        info!("📄 创建新页面 / Creating new page...");
         let page = browser.new_page("about:blank").await?;
 
         // 注意: chromiumoxide 0.6 的 set_viewport API 可能不同
@@ -247,11 +268,22 @@ impl XRegistration {
         // 这里暂时跳过，使用默认视口
 
         // 执行注册流程
+        info!("📝 执行注册流程 / Performing registration...");
         let result = self.perform_registration(&page, &mut account_info).await;
 
         // 清理
+        info!("🧹 清理资源 / Cleaning up resources...");
         if let Err(e) = browser.close().await {
-            warn!("关闭浏览器时出错: {}", e);
+            warn!("关闭浏览器时出错 / Error closing browser: {}", e);
+        }
+
+        match &result {
+            Ok(acc) => {
+                info!("✅ 账号注册成功 / Account registered successfully: {}", acc.username);
+            }
+            Err(e) => {
+                error!("❌ 账号注册失败 / Account registration failed: {}", e);
+            }
         }
 
         result
@@ -263,52 +295,65 @@ impl XRegistration {
         account_info: &mut AccountInfo,
     ) -> Result<AccountInfo> {
         // 访问注册页面
-        info!("访问注册页面: {}", self.config.x_account.base_url);
+        info!("🔗 访问注册页面 / Navigating to registration page");
+        info!("   URL: {}", self.config.x_account.base_url);
         page.goto(&self.config.x_account.base_url).await?;
+        info!("✅ 页面加载完成 / Page loaded");
         sleep(Duration::from_secs(3)).await;
 
         // 截图
+        info!("📸 截图: 注册页面 / Screenshot: Registration page");
         self.take_screenshot(page, "01_signup_page").await?;
 
         // 这里需要实现具体的注册步骤
         // 由于 X/Twitter 的注册流程可能会变化，这里提供一个框架
 
-        info!("填写注册信息...");
+        info!("✏️  填写注册信息 / Filling registration form...");
+        info!("   姓名 / Name: {}", account_info.name);
+        info!("   邮箱 / Email: {}", account_info.email);
         // TODO: 实现具体的表单填写逻辑
 
-        info!("等待验证码...");
+        info!("⏳ 等待邮箱验证码 / Waiting for email verification code...");
         let timeout = Duration::from_secs(self.config.x_account.email_wait_timeout);
+        info!("   超时时间 / Timeout: {} 秒 / seconds", self.config.x_account.email_wait_timeout);
+        
         if let Some(code) = self
             .email_handler
             .wait_for_verification_code(&account_info.email, timeout)
             .await
         {
-            info!("收到验证码: {}", code);
+            info!("✅ 收到验证码 / Received verification code: {}", code);
+            info!("🔢 输入验证码 / Entering verification code...");
             // TODO: 输入验证码
+            info!("✅ 验证码已输入 / Verification code entered");
         } else {
-            anyhow::bail!("未收到验证码");
+            error!("❌ 未收到验证码 / Verification code not received");
+            anyhow::bail!("未收到验证码 / Verification code not received");
         }
 
         account_info.status = "registered".to_string();
-        info!("账号注册成功: {}", account_info.username);
+        info!("🎉 账号注册完成 / Account registration completed");
+        info!("   用户名 / Username: {}", account_info.username);
+        info!("   邮箱 / Email: {}", account_info.email);
 
         Ok(account_info.clone())
     }
 
     async fn take_screenshot(&self, page: &chromiumoxide::Page, name: &str) -> Result<()> {
-        let dir = PathBuf::from(&self.config.output.screenshots_dir);
+        let dir = crate::data_dir::get_screenshots_dir();
         std::fs::create_dir_all(&dir)?;
 
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let filename = format!("{}_{}.png", name, timestamp);
         let filepath = dir.join(filename);
 
+        info!("   保存截图到 / Saving screenshot to: {}", filepath.display());
         let screenshot = page
             .screenshot(chromiumoxide::page::ScreenshotParams::builder().build())
             .await?;
         std::fs::write(&filepath, screenshot)?;
 
-        info!("已保存截图: {}", filepath.display());
+        info!("   ✅ 截图已保存 / Screenshot saved");
         Ok(())
     }
 }
