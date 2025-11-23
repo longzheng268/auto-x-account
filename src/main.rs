@@ -14,6 +14,7 @@ mod email;
 mod email_provider;
 mod gui;
 mod i18n;
+mod import_export;
 mod logging;
 mod registration;
 
@@ -94,12 +95,19 @@ enum Commands {
     /// 导出账号 / Export accounts
     Export {
         /// 导出文件路径 / Export file path
-        #[arg(short, long, default_value = "accounts_export.json")]
+        #[arg(short, long, default_value = "accounts_export.xlsx")]
         output: String,
 
-        /// 格式 / Format (json, csv, txt)
-        #[arg(short, long, default_value = "json")]
+        /// 格式 / Format (json, csv, xlsx)
+        #[arg(short, long, default_value = "xlsx")]
         format: String,
+    },
+
+    /// 导入账号 / Import accounts
+    Import {
+        /// 导入文件路径 / Import file path
+        #[arg(short, long)]
+        input: String,
     },
 }
 
@@ -193,6 +201,10 @@ async fn main() -> Result<()> {
 
         Commands::Export { output, format } => {
             run_export_accounts(output, format, &i18n).await?;
+        }
+
+        Commands::Import { input } => {
+            run_import_accounts(input, &i18n).await?;
         }
     }
 
@@ -401,11 +413,103 @@ async fn run_create_emails(
     Ok(())
 }
 
-async fn run_export_accounts(output: String, _format: String, _i18n: &I18n) -> Result<()> {
+async fn run_export_accounts(output: String, format: String, _i18n: &I18n) -> Result<()> {
     info!("导出账号到文件: {}", output);
 
-    // TODO: 从存储中加载账号并导出
-    info!("导出功能待完善");
+    // 加载账号数据
+    let accounts_file = data_dir::get_accounts_path();
+    
+    if !accounts_file.exists() {
+        warn!("账号文件不存在: {}", accounts_file.display());
+        info!("没有账号数据可导出");
+        return Ok(());
+    }
+
+    // 读取账号数据
+    let content = std::fs::read_to_string(&accounts_file)?;
+    let accounts: Vec<registration::AccountInfo> = serde_json::from_str(&content)?;
+
+    if accounts.is_empty() {
+        info!("没有账号数据可导出");
+        return Ok(());
+    }
+
+    // 转换为导出格式
+    let export_data: Vec<import_export::AccountData> = accounts
+        .iter()
+        .map(|acc| import_export::AccountData {
+            username: acc.username.clone(),
+            email: acc.email.clone(),
+            password: acc.password.clone(),
+            phone: acc.phone.clone(),
+            created_at: Some(acc.created_at.clone()),
+            status: Some("active".to_string()),
+            notes: None,
+        })
+        .collect();
+
+    // 自动检测格式
+    let export_format = import_export::ExportFormat::from_extension(&format);
+
+    // 导出
+    import_export::export_accounts(&export_data, &output, export_format)?;
+
+    info!("成功导出 {} 个账号到 {}", export_data.len(), output);
+
+    Ok(())
+}
+
+async fn run_import_accounts(input: String, _i18n: &I18n) -> Result<()> {
+    info!("从文件导入账号: {}", input);
+
+    // 导入账号数据
+    let imported = import_export::import_accounts(&input)?;
+
+    if imported.is_empty() {
+        warn!("导入的文件中没有账号数据");
+        return Ok(());
+    }
+
+    info!("成功导入 {} 个账号", imported.len());
+
+    // 显示导入的账号
+    println!("\n导入的账号列表:");
+    for (idx, account) in imported.iter().enumerate() {
+        println!(
+            "  {}. {} ({}) - 状态: {}",
+            idx + 1,
+            account.username,
+            account.email,
+            account.status.as_deref().unwrap_or("未知")
+        );
+    }
+
+    // 将导入的账号保存到本地（追加模式）
+    let accounts_file = data_dir::get_accounts_path();
+    let mut existing_accounts = if accounts_file.exists() {
+        let content = std::fs::read_to_string(&accounts_file)?;
+        serde_json::from_str::<Vec<registration::AccountInfo>>(&content)
+            .unwrap_or_else(|_| Vec::new())
+    } else {
+        Vec::new()
+    };
+
+    // 转换并追加
+    for account in imported {
+        existing_accounts.push(registration::AccountInfo {
+            username: account.username,
+            email: account.email,
+            password: account.password,
+            phone: account.phone,
+            created_at: account.created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+        });
+    }
+
+    // 保存
+    let content = serde_json::to_string_pretty(&existing_accounts)?;
+    std::fs::write(&accounts_file, content)?;
+
+    info!("账号已保存到本地数据库");
 
     Ok(())
 }
