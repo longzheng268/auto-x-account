@@ -143,9 +143,9 @@ impl XRegistration {
         std::fs::create_dir_all(&user_data_dir)?;
         builder = builder.user_data_dir(&user_data_dir);
 
-        // 启动浏览器
+        // 启动浏览器 / Launch browser
         let (mut browser, mut handler) = Browser::launch(
-            builder.build().map_err(|e| anyhow::anyhow!("浏览器配置错误: {}", e))?
+            builder.build().map_err(|e| anyhow::anyhow!("Browser configuration error / 浏览器配置错误: {}", e))?
         ).await?;
 
         // 处理浏览器事件

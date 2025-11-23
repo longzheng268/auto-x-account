@@ -97,10 +97,10 @@ impl BatchRegistrationManager {
         let task_id_clone = task_id.clone();
         tokio::spawn(async move {
             if let Err(e) = manager
-                .execute_batch_registration(task_id_clone.clone(), count, concurrent, use_existing_emails)
+                .execute_batch_registration(task_id_clone, count, concurrent, use_existing_emails)
                 .await
             {
-                error!("批量注册任务 {} 失败: {}", task_id_clone, e);
+                error!("批量注册任务失败: {}", e);
             }
         });
 
