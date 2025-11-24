@@ -40,5 +40,19 @@ fonts/*
 
 
 # Added by cargo
-
 /target
+
+# Kotlin/Native and Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+*.kotlin_module
+*.kotlin_metadata
+
+# Kotlin/Native compiled binaries
+*.kexe
+*.exe
+*.dll
+*.so
+*.dylib
