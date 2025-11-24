@@ -213,8 +213,6 @@ impl AutoXAccountApp {
                 }
 
                 ui.add_space(8.0);
-                    }
-                }
             });
         });
 
