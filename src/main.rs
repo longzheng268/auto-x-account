@@ -593,14 +593,14 @@ async fn run_import_accounts(input: String, _i18n: &I18n) -> Result<()> {
     for account in imported {
         existing_accounts.push(registration::AccountInfo {
             email: account.email,
-            name: String::new(), // Import format doesn't include name
+            name: account.username.clone(), // Use username as name for imported accounts
             username: account.username,
             password: account.password.unwrap_or_default(),
             phone: account.phone,
             birth_date: registration::BirthDate {
-                month: String::new(),
-                day: String::new(),
-                year: String::new(),
+                month: "01".to_string(),  // Default to January 1, 1990
+                day: "01".to_string(),
+                year: "1990".to_string(),
             },
             created_at: account.created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
             status: account.status.unwrap_or_else(|| "imported".to_string()),
