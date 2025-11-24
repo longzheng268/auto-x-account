@@ -9,7 +9,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 use std::path::Path;
 use tracing::{info, warn};
 
@@ -247,8 +247,13 @@ fn import_accounts_excel<P: AsRef<Path>>(path: P) -> Result<Vec<AccountData>> {
         .clone();
 
     let range = workbook.worksheet_range(&sheet_name)
-        .context("无法读取工作表")?
-        .context("工作表为空")?;
+        .context("无法读取工作表")?;
+    
+    // 如果工作表为空，返回空列表
+    if range.is_empty() {
+        warn!("工作表为空，返回空账号列表");
+        return Ok(Vec::new());
+    }
 
     let mut accounts = Vec::new();
     let mut rows = range.rows();
@@ -418,7 +423,13 @@ pub fn import_emails<P: AsRef<Path>>(path: P) -> Result<Vec<EmailData>> {
             
             let mut workbook: Xlsx<_> = open_workbook(path)?;
             let sheet_name = workbook.sheet_names().get(0).context("No worksheet")?.clone();
-            let range = workbook.worksheet_range(&sheet_name)?.context("Empty worksheet")?;
+            let range = workbook.worksheet_range(&sheet_name)?;
+            
+            // 如果工作表为空，返回空列表
+            if range.is_empty() {
+                warn!("Worksheet is empty, returning empty list");
+                return Ok(Vec::new());
+            }
             
             let mut emails = Vec::new();
             let mut rows = range.rows();

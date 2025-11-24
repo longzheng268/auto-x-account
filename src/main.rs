@@ -383,6 +383,7 @@ async fn run_batch_registration(
 
 async fn run_browser_detection(config: Config, verbose: bool, _i18n: &I18n) -> Result<()> {
     use chromiumoxide::browser::{Browser, BrowserConfig};
+    use futures::StreamExt;  // For handler.next()
 
     info!("🔍 开始浏览器环境检测 / Starting browser environment detection");
 
@@ -405,7 +406,8 @@ async fn run_browser_detection(config: Config, verbose: bool, _i18n: &I18n) -> R
 
     // 启动浏览器
     info!("🌐 启动浏览器 / Launching browser...");
-    let (mut browser, mut handler) = Browser::launch(builder.build()?).await?;
+    let browser_config = builder.build().map_err(|e| anyhow::anyhow!("Failed to build browser config: {}", e))?;
+    let (mut browser, mut handler) = Browser::launch(browser_config).await?;
 
     tokio::spawn(async move {
         while let Some(event) = handler.next().await {
@@ -533,10 +535,10 @@ async fn run_export_accounts(output: String, format: String, _i18n: &I18n) -> Re
         .map(|acc| import_export::AccountData {
             username: acc.username.clone(),
             email: acc.email.clone(),
-            password: acc.password.clone(),
+            password: Some(acc.password.clone()),
             phone: acc.phone.clone(),
             created_at: Some(acc.created_at.clone()),
-            status: Some("active".to_string()),
+            status: Some(acc.status.clone()),
             notes: None,
         })
         .collect();
@@ -590,11 +592,18 @@ async fn run_import_accounts(input: String, _i18n: &I18n) -> Result<()> {
     // 转换并追加
     for account in imported {
         existing_accounts.push(registration::AccountInfo {
-            username: account.username,
             email: account.email,
-            password: account.password,
+            name: account.username.clone(), // Use username as name for imported accounts
+            username: account.username,
+            password: account.password.unwrap_or_default(),
             phone: account.phone,
+            birth_date: registration::BirthDate {
+                month: "01".to_string(),  // Default to January 1, 1990
+                day: "01".to_string(),
+                year: "1990".to_string(),
+            },
             created_at: account.created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+            status: account.status.unwrap_or_else(|| "imported".to_string()),
         });
     }
 
@@ -607,7 +616,7 @@ async fn run_import_accounts(input: String, _i18n: &I18n) -> Result<()> {
     Ok(())
 }
 
-fn save_account_info(config: &Config, account: &registration::AccountInfo) -> Result<()> {
+fn save_account_info(_config: &Config, account: &registration::AccountInfo) -> Result<()> {
     use std::fs;
 
     // 使用数据目录中的账号文件

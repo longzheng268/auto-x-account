@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::info;
 
 /// 获取应用程序数据目录
 /// Get application data directory based on OS

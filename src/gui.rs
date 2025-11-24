@@ -364,8 +364,9 @@ impl AutoXAccountApp {
                         tracing::info!("📧 开始生成临时邮箱 / Starting to generate temporary email");
                         // 这里应该调用后端API生成邮箱
                     } else {
-                        state.logs.push(format!("📧 使用邮箱: {}", state.email));
-                        tracing::info!("📧 使用手动输入邮箱 / Using manual email: {}", state.email);
+                        let email = state.email.clone();
+                        state.logs.push(format!("📧 使用邮箱: {}", email));
+                        tracing::info!("📧 使用手动输入邮箱 / Using manual email: {}", email);
                     }
                 }
                 
