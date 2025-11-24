@@ -5,16 +5,17 @@
 //! Supports SMTP email verification, proxy access, multi-language UI, batch registration
 
 mod batch;
+mod bitbrowser;
 mod browser_detector;
 mod captcha;
 mod config;
-mod custom_captcha_solver;
+mod data_dir;
 mod email;
 mod email_provider;
 mod gui;
 mod i18n;
+mod import_export;
 mod logging;
-mod recaptcha_solver;
 mod registration;
 
 use anyhow::Result;
@@ -94,17 +95,37 @@ enum Commands {
     /// 导出账号 / Export accounts
     Export {
         /// 导出文件路径 / Export file path
-        #[arg(short, long, default_value = "accounts_export.json")]
+        #[arg(short, long, default_value = "accounts_export.xlsx")]
         output: String,
 
-        /// 格式 / Format (json, csv, txt)
-        #[arg(short, long, default_value = "json")]
+        /// 格式 / Format (json, csv, xlsx)
+        #[arg(short, long, default_value = "xlsx")]
         format: String,
+    },
+
+    /// 导入账号 / Import accounts
+    Import {
+        /// 导入文件路径 / Import file path
+        #[arg(short, long)]
+        input: String,
+    },
+
+    /// 检测浏览器环境 / Detect browser environment
+    DetectBrowser {
+        /// 是否详细输出 / Verbose output
+        #[arg(short, long)]
+        verbose: bool,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 初始化数据目录
+    // Initialize data directories
+    if let Err(e) = data_dir::init_directories() {
+        eprintln!("初始化数据目录失败 / Failed to initialize data directories: {}", e);
+    }
+
     // 初始化日志系统（文件 + 控制台）
     // Initialize logging system (file + console)
     if let Err(e) = logging::init_logging() {
@@ -118,9 +139,13 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // 清理超过30天的旧日志
-    // Clean up logs older than 30 days
+    // 打印数据目录信息
+    info!("\n{}", data_dir::get_data_dir_info());
+
+    // 清理超过30天的旧日志和任务
+    // Clean up logs and tasks older than 30 days
     let _ = logging::cleanup_old_logs(30);
+    let _ = data_dir::cleanup_old_tasks(30);
 
     let args = Args::parse();
 
@@ -130,15 +155,8 @@ async fn main() -> Result<()> {
         return gui::run_gui().map_err(|e| anyhow::anyhow!("GUI error: {}", e));
     }
 
-    // 加载配置
-    let mut config = if args.config.exists() {
-        Config::from_file(&args.config)?
-    } else {
-        info!("配置文件不存在，使用默认配置并创建示例配置文件");
-        let default_config = Config::default();
-        default_config.to_file("config.example.json")?;
-        default_config
-    };
+    // 加载配置（从数据目录）
+    let mut config = data_dir::load_or_create_config()?;
 
     // 命令行参数覆盖配置
     if let Some(lang) = args.language {
@@ -190,6 +208,14 @@ async fn main() -> Result<()> {
 
         Commands::Export { output, format } => {
             run_export_accounts(output, format, &i18n).await?;
+        }
+
+        Commands::Import { input } => {
+            run_import_accounts(input, &i18n).await?;
+        }
+
+        Commands::DetectBrowser { verbose } => {
+            run_browser_detection(config, verbose, &i18n).await?;
         }
     }
 
@@ -355,6 +381,88 @@ async fn run_batch_registration(
     Ok(())
 }
 
+async fn run_browser_detection(config: Config, verbose: bool, _i18n: &I18n) -> Result<()> {
+    use chromiumoxide::browser::{Browser, BrowserConfig};
+
+    info!("🔍 开始浏览器环境检测 / Starting browser environment detection");
+
+    // 配置浏览器
+    let mut builder = BrowserConfig::builder();
+    if !config.browser.headless {
+        builder = builder.with_head();
+    }
+
+    // 配置代理
+    if let Some(proxy_url) = config.get_proxy_url(crate::config::ProxyTarget::Browser) {
+        info!("使用代理 / Using proxy: {}", proxy_url);
+        builder = builder.arg(format!("--proxy-server={}", proxy_url));
+    }
+
+    // 设置用户数据目录
+    let user_data_dir = data_dir::get_browser_data_dir();
+    std::fs::create_dir_all(&user_data_dir)?;
+    builder = builder.user_data_dir(&user_data_dir);
+
+    // 启动浏览器
+    info!("🌐 启动浏览器 / Launching browser...");
+    let (mut browser, mut handler) = Browser::launch(builder.build()?).await?;
+
+    tokio::spawn(async move {
+        while let Some(event) = handler.next().await {
+            if let Err(e) = event {
+                tracing::error!("Browser event error: {}", e);
+            }
+        }
+    });
+
+    // 创建页面
+    let page = browser.new_page("about:blank").await?;
+    info!("✅ 浏览器已启动 / Browser launched");
+
+    // 执行检测
+    let detector = browser_detector::BrowserDetector::new().with_verbose(verbose);
+    info!("🔬 执行环境检测 / Performing environment detection...");
+    
+    let report = detector.detect_environment(&page).await?;
+
+    // 输出结果
+    println!("\n═══════════════════════════════════════════════");
+    println!("  浏览器环境检测报告 / Browser Environment Report");
+    println!("═══════════════════════════════════════════════\n");
+
+    println!("📊 总体评估 / Overall Assessment:");
+    println!("  风险等级 / Risk Level: {:?}", report.risk_level);
+    println!("  风险评分 / Risk Score: {}/100", report.risk_score);
+    println!();
+
+    println!("📋 检测详情 / Detection Details:");
+    for check in &report.checks {
+        let status = if check.passed { "✅" } else { "❌" };
+        println!("  {} {} (权重: {})", status, check.name, check.weight);
+        if verbose || !check.passed {
+            println!("     {}", check.details);
+        }
+    }
+    println!();
+
+    if !report.recommendations.is_empty() {
+        println!("💡 优化建议 / Recommendations:");
+        for (i, rec) in report.recommendations.iter().enumerate() {
+            println!("  {}. {}", i + 1, rec);
+        }
+        println!();
+    }
+
+    println!("🕐 检测时间 / Timestamp: {}", report.timestamp);
+    println!("═══════════════════════════════════════════════\n");
+
+    // 关闭浏览器
+    browser.close().await?;
+    info!("✅ 检测完成 / Detection completed");
+
+    Ok(())
+}
+
 async fn run_create_emails(
     config: Config,
     count: usize,
@@ -398,11 +506,103 @@ async fn run_create_emails(
     Ok(())
 }
 
-async fn run_export_accounts(output: String, _format: String, _i18n: &I18n) -> Result<()> {
+async fn run_export_accounts(output: String, format: String, _i18n: &I18n) -> Result<()> {
     info!("导出账号到文件: {}", output);
 
-    // TODO: 从存储中加载账号并导出
-    info!("导出功能待完善");
+    // 加载账号数据
+    let accounts_file = data_dir::get_accounts_path();
+    
+    if !accounts_file.exists() {
+        warn!("账号文件不存在: {}", accounts_file.display());
+        info!("没有账号数据可导出");
+        return Ok(());
+    }
+
+    // 读取账号数据
+    let content = std::fs::read_to_string(&accounts_file)?;
+    let accounts: Vec<registration::AccountInfo> = serde_json::from_str(&content)?;
+
+    if accounts.is_empty() {
+        info!("没有账号数据可导出");
+        return Ok(());
+    }
+
+    // 转换为导出格式
+    let export_data: Vec<import_export::AccountData> = accounts
+        .iter()
+        .map(|acc| import_export::AccountData {
+            username: acc.username.clone(),
+            email: acc.email.clone(),
+            password: acc.password.clone(),
+            phone: acc.phone.clone(),
+            created_at: Some(acc.created_at.clone()),
+            status: Some("active".to_string()),
+            notes: None,
+        })
+        .collect();
+
+    // 自动检测格式
+    let export_format = import_export::ExportFormat::from_extension(&format);
+
+    // 导出
+    import_export::export_accounts(&export_data, &output, export_format)?;
+
+    info!("成功导出 {} 个账号到 {}", export_data.len(), output);
+
+    Ok(())
+}
+
+async fn run_import_accounts(input: String, _i18n: &I18n) -> Result<()> {
+    info!("从文件导入账号: {}", input);
+
+    // 导入账号数据
+    let imported = import_export::import_accounts(&input)?;
+
+    if imported.is_empty() {
+        warn!("导入的文件中没有账号数据");
+        return Ok(());
+    }
+
+    info!("成功导入 {} 个账号", imported.len());
+
+    // 显示导入的账号
+    println!("\n导入的账号列表:");
+    for (idx, account) in imported.iter().enumerate() {
+        println!(
+            "  {}. {} ({}) - 状态: {}",
+            idx + 1,
+            account.username,
+            account.email,
+            account.status.as_deref().unwrap_or("未知")
+        );
+    }
+
+    // 将导入的账号保存到本地（追加模式）
+    let accounts_file = data_dir::get_accounts_path();
+    let mut existing_accounts = if accounts_file.exists() {
+        let content = std::fs::read_to_string(&accounts_file)?;
+        serde_json::from_str::<Vec<registration::AccountInfo>>(&content)
+            .unwrap_or_else(|_| Vec::new())
+    } else {
+        Vec::new()
+    };
+
+    // 转换并追加
+    for account in imported {
+        existing_accounts.push(registration::AccountInfo {
+            username: account.username,
+            email: account.email,
+            password: account.password,
+            phone: account.phone,
+            created_at: account.created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+        });
+    }
+
+    // 保存
+    let content = serde_json::to_string_pretty(&existing_accounts)?;
+    std::fs::write(&accounts_file, content)?;
+
+    info!("账号已保存到本地数据库");
 
     Ok(())
 }
@@ -410,7 +610,8 @@ async fn run_export_accounts(output: String, _format: String, _i18n: &I18n) -> R
 fn save_account_info(config: &Config, account: &registration::AccountInfo) -> Result<()> {
     use std::fs;
 
-    let accounts_file = PathBuf::from(&config.output.accounts_file);
+    // 使用数据目录中的账号文件
+    let accounts_file = data_dir::get_accounts_path();
 
     let mut accounts = if accounts_file.exists() {
         let content = fs::read_to_string(&accounts_file)?;

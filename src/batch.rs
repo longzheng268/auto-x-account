@@ -15,7 +15,7 @@ use crate::email_provider::BatchEmailManager;
 use crate::registration::{AccountInfo, XRegistration};
 
 /// 批量注册任务状态
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BatchStatus {
     /// 等待中
     Pending,
@@ -25,6 +25,8 @@ pub enum BatchStatus {
     Completed,
     /// 已暂停
     Paused,
+    /// 已停止
+    Stopped,
     /// 失败
     Failed,
 }
@@ -65,64 +67,10 @@ impl BatchRegistrationManager {
         }
     }
 
-    /// 获取缓存目录路径
-    /// Get cache directory path based on OS
-    fn cache_dir() -> PathBuf {
-        #[cfg(target_os = "windows")]
-        {
-            // Windows: %APPDATA%\auto-x-account
-            if let Ok(appdata) = std::env::var("APPDATA") {
-                PathBuf::from(appdata).join("auto-x-account")
-            } else {
-                PathBuf::from("./data")
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            // macOS: ~/Library/Application Support/auto-x-account
-            if let Ok(home) = std::env::var("HOME") {
-                PathBuf::from(home)
-                    .join("Library")
-                    .join("Application Support")
-                    .join("auto-x-account")
-            } else {
-                PathBuf::from("./data")
-            }
-        }
-
-        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-        {
-            // Linux/Unix: ~/.local/share/auto-x-account
-            if let Ok(home) = std::env::var("HOME") {
-                PathBuf::from(home)
-                    .join(".local")
-                    .join("share")
-                    .join("auto-x-account")
-            } else if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
-                PathBuf::from(xdg_data_home).join("auto-x-account")
-            } else {
-                PathBuf::from("./data")
-            }
-        }
-    }
-
-    /// 确保缓存目录存在
-    /// Ensure cache directory exists
-    fn ensure_cache_dir() -> Result<PathBuf> {
-        let dir = Self::cache_dir();
-        if !dir.exists() {
-            std::fs::create_dir_all(&dir)?;
-            info!("创建缓存目录 / Created cache directory: {}", dir.display());
-        }
-        Ok(dir)
-    }
-
     /// 持久化任务数据
     /// Persist tasks data
     async fn persist_tasks(&self) -> Result<()> {
-        let dir = Self::ensure_cache_dir()?;
-        let path = dir.join("tasks.json");
+        let path = crate::data_dir::get_tasks_dir().join("tasks.json");
         
         // Clone data and release lock before serialization to avoid blocking
         let tasks_clone = {
@@ -138,8 +86,7 @@ impl BatchRegistrationManager {
     /// 持久化账号数据
     /// Persist accounts data
     async fn persist_accounts(&self) -> Result<()> {
-        let dir = Self::ensure_cache_dir()?;
-        let path = dir.join("accounts.json");
+        let path = crate::data_dir::get_accounts_path();
         
         // Clone data and release lock before serialization to avoid blocking
         let accounts_clone = {
@@ -155,10 +102,8 @@ impl BatchRegistrationManager {
     /// 从缓存加载数据
     /// Load data from cache
     pub async fn load_from_cache(&self) -> Result<()> {
-        let dir = Self::cache_dir();
-        
         // 加载任务数据
-        let tasks_path = dir.join("tasks.json");
+        let tasks_path = crate::data_dir::get_tasks_dir().join("tasks.json");
         if tasks_path.exists() {
             let data = std::fs::read_to_string(tasks_path)?;
             let list: Vec<BatchTask> = serde_json::from_str(&data)?;
@@ -169,7 +114,7 @@ impl BatchRegistrationManager {
         }
 
         // 加载账号数据
-        let accounts_path = dir.join("accounts.json");
+        let accounts_path = crate::data_dir::get_accounts_path();
         if accounts_path.exists() {
             let data = std::fs::read_to_string(accounts_path)?;
             let list: Vec<AccountInfo> = serde_json::from_str(&data)?;
@@ -237,9 +182,37 @@ impl BatchRegistrationManager {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
 
         for i in 0..count {
+            // 检查任务状态
+            let status = {
+                let tasks = self.tasks.lock().await;
+                tasks
+                    .iter()
+                    .find(|t| t.id == task_id)
+                    .map(|t| t.status.clone())
+            };
+
+            match status {
+                Some(BatchStatus::Paused) => {
+                    info!("任务 {} 已暂停，等待恢复...", task_id);
+                    // 等待恢复
+                    while let Some(BatchStatus::Paused) = {
+                        let tasks = self.tasks.lock().await;
+                        tasks.iter().find(|t| t.id == task_id).map(|t| t.status.clone())
+                    } {
+                        sleep(Duration::from_secs(2)).await;
+                    }
+                    info!("任务 {} 已恢复", task_id);
+                }
+                Some(BatchStatus::Stopped) => {
+                    info!("任务 {} 已停止，终止剩余注册", task_id);
+                    break;
+                }
+                _ => {}
+            }
+
             let sem = semaphore.clone();
             let manager = self.clone_for_task();
-            let task_id = task_id.clone();
+            let task_id_clone = task_id.clone();
 
             let handle = tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
@@ -249,12 +222,12 @@ impl BatchRegistrationManager {
                 match manager.register_single_account(use_existing_emails).await {
                     Ok(account) => {
                         info!("成功注册账号 {}/{}: {}", i + 1, count, account.username);
-                        manager.update_task_progress(&task_id, true).await;
+                        manager.update_task_progress(&task_id_clone, true).await;
                         manager.save_account(account).await;
                     }
                     Err(e) => {
                         error!("注册账号 {}/{} 失败: {}", i + 1, count, e);
-                        manager.update_task_progress(&task_id, false).await;
+                        manager.update_task_progress(&task_id_clone, false).await;
                     }
                 }
 
@@ -270,10 +243,21 @@ impl BatchRegistrationManager {
             let _ = handle.await;
         }
 
-        // 更新任务状态为完成
-        self.complete_task(&task_id).await;
+        // 检查最终状态
+        let final_status = {
+            let tasks = self.tasks.lock().await;
+            tasks.iter().find(|t| t.id == task_id).map(|t| t.status.clone())
+        };
 
-        info!("批量注册任务 {} 完成", task_id);
+        if let Some(BatchStatus::Stopped) = final_status {
+            self.stop_task(&task_id).await;
+            info!("批量注册任务 {} 已停止", task_id);
+        } else {
+            // 更新任务状态为完成
+            self.complete_task(&task_id).await;
+            info!("批量注册任务 {} 完成", task_id);
+        }
+
         Ok(())
     }
 
@@ -370,30 +354,58 @@ impl BatchRegistrationManager {
         })
     }
 
-    /// 暂停任务（待实现）
+    /// 暂停任务
     pub async fn pause_task(&self, task_id: &str) -> Result<()> {
         let mut tasks = self.tasks.lock().await;
         if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
+            if !matches!(task.status, BatchStatus::Running) {
+                anyhow::bail!("只能暂停运行中的任务");
+            }
             task.status = BatchStatus::Paused;
             task.updated_at = chrono::Utc::now().to_rfc3339();
-            info!("任务 {} 已暂停", task_id);
-            Ok(())
+            info!("✅ 任务 {} 已暂停", task_id);
         } else {
-            anyhow::bail!("任务不存在: {}", task_id)
+            anyhow::bail!("任务不存在: {}", task_id);
         }
+        drop(tasks);
+        let _ = self.persist_tasks().await;
+        Ok(())
     }
 
-    /// 恢复任务（待实现）
+    /// 恢复任务
     pub async fn resume_task(&self, task_id: &str) -> Result<()> {
         let mut tasks = self.tasks.lock().await;
         if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
+            if !matches!(task.status, BatchStatus::Paused) {
+                anyhow::bail!("只能恢复已暂停的任务");
+            }
             task.status = BatchStatus::Running;
             task.updated_at = chrono::Utc::now().to_rfc3339();
-            info!("任务 {} 已恢复", task_id);
-            Ok(())
+            info!("✅ 任务 {} 已恢复", task_id);
         } else {
-            anyhow::bail!("任务不存在: {}", task_id)
+            anyhow::bail!("任务不存在: {}", task_id);
         }
+        drop(tasks);
+        let _ = self.persist_tasks().await;
+        Ok(())
+    }
+
+    /// 停止任务
+    pub async fn stop_task(&self, task_id: &str) -> Result<()> {
+        let mut tasks = self.tasks.lock().await;
+        if let Some(task) = tasks.iter_mut().find(|t| t.id == task_id) {
+            if matches!(task.status, BatchStatus::Completed | BatchStatus::Stopped) {
+                anyhow::bail!("任务已结束，无法停止");
+            }
+            task.status = BatchStatus::Stopped;
+            task.updated_at = chrono::Utc::now().to_rfc3339();
+            info!("🛑 任务 {} 已停止", task_id);
+        } else {
+            anyhow::bail!("任务不存在: {}", task_id);
+        }
+        drop(tasks);
+        let _ = self.persist_tasks().await;
+        Ok(())
     }
 
     /// 导出账号到文件

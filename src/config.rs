@@ -291,6 +291,36 @@ pub struct LlmApiConfig {
     pub model: String,
 }
 
+/// BitBrowser 配置
+/// BitBrowser configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitBrowserConfig {
+    /// BitBrowser API 地址
+    pub api_url: String,
+    /// BitBrowser API 端口
+    pub api_port: u16,
+    /// 浏览器配置文件 ID（多个ID用于轮换）
+    pub profile_ids: Vec<String>,
+    /// 是否自动创建配置文件
+    #[serde(default = "default_false")]
+    pub auto_create_profile: bool,
+    /// 每个账号是否使用独立配置文件
+    #[serde(default = "default_true")]
+    pub separate_profile_per_account: bool,
+}
+
+impl Default for BitBrowserConfig {
+    fn default() -> Self {
+        BitBrowserConfig {
+            api_url: "http://127.0.0.1".to_string(),
+            api_port: 54345,
+            profile_ids: vec![],
+            auto_create_profile: false,
+            separate_profile_per_account: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmtpConfig {
     pub host: String,
@@ -353,8 +383,26 @@ fn default_false() -> bool {
     false
 }
 
+/// 浏览器类型
+/// Browser type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowserType {
+    /// 原生 Chrome/Chromium
+    Native,
+    /// BitBrowser (比特浏览器) - 用于指纹管理
+    BitBrowser,
+}
+
+fn default_browser_type() -> BrowserType {
+    BrowserType::Native
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {
+    /// 浏览器类型
+    #[serde(default = "default_browser_type")]
+    pub browser_type: BrowserType,
     pub headless: bool,
     pub timeout: u64,
     pub viewport: ViewportConfig,
@@ -363,6 +411,9 @@ pub struct BrowserConfig {
     /// Path to Chrome/Chromium executable (optional, uses system installation if empty)
     #[serde(default)]
     pub chrome_path: Option<String>,
+    /// BitBrowser 配置
+    #[serde(default)]
+    pub bitbrowser: Option<BitBrowserConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -814,6 +865,7 @@ impl Default for Config {
                 email_enabled: false,
             },
             browser: BrowserConfig {
+                browser_type: BrowserType::Native,
                 headless: false,
                 timeout: 30000,
                 viewport: ViewportConfig {
@@ -822,6 +874,7 @@ impl Default for Config {
                 },
                 user_data_dir: "browser_data".to_string(),
                 chrome_path: None,
+                bitbrowser: None,
             },
             x_account: XAccountConfig {
                 base_url: "https://twitter.com/i/flow/signup".to_string(),

@@ -94,8 +94,20 @@ impl AutoXAccountApp {
         // 配置视觉样式
         Self::configure_style(&cc.egui_ctx);
 
+        // 从数据目录加载配置
+        let config = match crate::data_dir::load_or_create_config() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!("加载配置失败，使用默认配置: {}", e);
+                crate::config::Config::default()
+            }
+        };
+
         AutoXAccountApp {
-            state: Arc::new(Mutex::new(AppState::default())),
+            state: Arc::new(Mutex::new(AppState {
+                config,
+                ..Default::default()
+            })),
             colors: ChineseColorScheme::default(),
         }
     }
@@ -166,6 +178,41 @@ impl AutoXAccountApp {
                 if ui.button(RichText::new("⚙ 设置").size(16.0)).clicked() {
                     if let Ok(mut state) = self.state.lock() {
                         state.show_settings = !state.show_settings;
+                        if state.show_settings {
+                            tracing::info!("⚙️  用户打开设置窗口 / User opened settings window");
+                        } else {
+                            tracing::info!("⚙️  用户关闭设置窗口 / User closed settings window");
+                        }
+                    }
+                }
+
+                ui.add_space(8.0);
+
+                // 语言切换按钮
+                if let Ok(mut state) = self.state.lock() {
+                    let current_lang = if state.config.language == "zh-CN" {
+                        "🇨🇳 中文"
+                    } else {
+                        "🇺🇸 English"
+                    };
+
+                    egui::ComboBox::from_label("🌐")
+                        .selected_text(current_lang)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_value(&mut state.config.language, "zh-CN".to_string(), "🇨🇳 中文").clicked() {
+                                tracing::info!("🌐 用户切换语言到中文 / User switched language to Chinese");
+                                // 保存配置
+                                let _ = crate::data_dir::save_config(&state.config);
+                            }
+                            if ui.selectable_value(&mut state.config.language, "en-US".to_string(), "🇺🇸 English").clicked() {
+                                tracing::info!("🌐 用户切换语言到英文 / User switched language to English");
+                                // 保存配置
+                                let _ = crate::data_dir::save_config(&state.config);
+                            }
+                        });
+                }
+
+                ui.add_space(8.0);
                     }
                 }
             });
@@ -307,17 +354,66 @@ impl AutoXAccountApp {
                 .rounding(Rounding::same(8.0));
 
                 if ui.add(button).clicked() {
+                    tracing::info!("🚀 用户点击开始注册按钮 / User clicked start registration button");
+                    tracing::info!("   邮箱模式 / Email mode: {}", if state.email_manual_mode { "手动 / Manual" } else { "自动 / Auto" });
+                    
                     // TODO: 触发注册流程
                     // 如果是自动生成模式，先生成邮箱
-                    // NOTE: This requires async runtime integration - see IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
-                    // 这需要异步运行时集成 - 参见 IMPLEMENTATION_EMAIL_PROVIDER_GUI.md
+                    // NOTE: This requires async runtime integration
                     if !state.email_manual_mode {
                         state.status = "正在生成临时邮箱...".to_string();
+                        state.logs.push("📧 开始生成临时邮箱".to_string());
+                        tracing::info!("📧 开始生成临时邮箱 / Starting to generate temporary email");
                         // 这里应该调用后端API生成邮箱
-                        // This should call backend API to generate email
-                        // Implementation pending: async runtime integration needed
+                    } else {
+                        state.logs.push(format!("📧 使用邮箱: {}", state.email));
+                        tracing::info!("📧 使用手动输入邮箱 / Using manual email: {}", state.email);
                     }
                 }
+                
+                ui.add_space(8.0);
+                
+                // 工具按钮行
+                ui.horizontal(|ui| {
+                    // 导入按钮
+                    if ui.button(RichText::new("📥 导入账号").size(14.0)).clicked() {
+                        tracing::info!("📥 用户点击导入账号按钮 / User clicked import accounts button");
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Excel", &["xlsx", "xls"])
+                            .add_filter("CSV", &["csv"])
+                            .add_filter("JSON", &["json"])
+                            .pick_file()
+                        {
+                            tracing::info!("   选择文件 / Selected file: {}", path.display());
+                            state.logs.push(format!("📥 导入文件: {}", path.display()));
+                            // TODO: 实际导入逻辑
+                        }
+                    }
+                    
+                    // 导出按钮
+                    if ui.button(RichText::new("📤 导出账号").size(14.0)).clicked() {
+                        tracing::info!("📤 用户点击导出账号按钮 / User clicked export accounts button");
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Excel", &["xlsx"])
+                            .add_filter("CSV", &["csv"])
+                            .add_filter("JSON", &["json"])
+                            .set_file_name("accounts_export.xlsx")
+                            .save_file()
+                        {
+                            tracing::info!("   保存到文件 / Save to file: {}", path.display());
+                            state.logs.push(format!("📤 导出到: {}", path.display()));
+                            // TODO: 实际导出逻辑
+                        }
+                    }
+                    
+                    // 浏览器检测按钮
+                    if ui.button(RichText::new("🔍 检测浏览器环境").size(14.0)).clicked() {
+                        tracing::info!("🔍 用户点击检测浏览器环境按钮 / User clicked browser detection button");
+                        state.logs.push("🔍 开始检测浏览器环境...".to_string());
+                        state.status = "正在检测浏览器环境，请稍候...".to_string();
+                        // TODO: 实际检测逻辑
+                    }
+                });
             });
 
         ui.add_space(16.0);
@@ -1137,7 +1233,117 @@ impl AutoXAccountApp {
                     );
                     ui.add_space(8.0);
 
+                    // 浏览器类型选择
+                    ui.horizontal(|ui| {
+                        ui.label("浏览器类型:");
+                        ui.radio_value(
+                            &mut state.config.browser.browser_type,
+                            crate::config::BrowserType::Native,
+                            "原生 Chrome/Chromium",
+                        );
+                        ui.radio_value(
+                            &mut state.config.browser.browser_type,
+                            crate::config::BrowserType::BitBrowser,
+                            "BitBrowser (指纹浏览器)",
+                        );
+                    });
+
+                    ui.add_space(8.0);
+
+                    // BitBrowser 配置（仅在选择 BitBrowser 时显示）
+                    if state.config.browser.browser_type == crate::config::BrowserType::BitBrowser {
+                        ui.group(|ui| {
+                            ui.label(
+                                RichText::new("🔧 BitBrowser 配置")
+                                    .size(16.0)
+                                    .color(self.colors.primary)
+                                    .strong(),
+                            );
+                            ui.add_space(8.0);
+
+                            // 如果 bitbrowser 配置为 None，创建默认值
+                            if state.config.browser.bitbrowser.is_none() {
+                                state.config.browser.bitbrowser = 
+                                    Some(crate::config::BitBrowserConfig::default());
+                            }
+
+                            if let Some(ref mut bb_config) = state.config.browser.bitbrowser {
+                                ui.horizontal(|ui| {
+                                    ui.label("API 地址:");
+                                    ui.text_edit_singleline(&mut bb_config.api_url);
+                                });
+                                
+                                ui.horizontal(|ui| {
+                                    ui.label("API 端口:");
+                                    ui.add(egui::DragValue::new(&mut bb_config.api_port).speed(1));
+                                });
+
+                                ui.add_space(8.0);
+                                ui.checkbox(
+                                    &mut bb_config.auto_create_profile,
+                                    "自动创建配置文件（如果没有可用的）",
+                                );
+                                ui.checkbox(
+                                    &mut bb_config.separate_profile_per_account,
+                                    "每个账号使用独立配置文件",
+                                );
+
+                                ui.add_space(8.0);
+                                ui.label(RichText::new("预定义配置文件 ID:").size(14.0));
+                                ui.label(
+                                    RichText::new("(留空则自动创建，每行一个ID)")
+                                        .size(12.0)
+                                        .color(self.colors.text_secondary),
+                                );
+
+                                // 将 profile_ids Vec 转换为文本用于编辑
+                                let mut profile_ids_text = bb_config.profile_ids.join("\n");
+                                if ui
+                                    .add(
+                                        egui::TextEdit::multiline(&mut profile_ids_text)
+                                            .desired_rows(3)
+                                            .desired_width(400.0),
+                                    )
+                                    .changed()
+                                {
+                                    // 将文本转换回 Vec
+                                    bb_config.profile_ids = profile_ids_text
+                                        .lines()
+                                        .filter(|line| !line.trim().is_empty())
+                                        .map(|line| line.trim().to_string())
+                                        .collect();
+                                }
+
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new("ℹ 确保 BitBrowser 已启动并运行在配置的端口上")
+                                        .size(13.0)
+                                        .color(self.colors.text_secondary),
+                                );
+                            }
+                        });
+                        ui.add_space(8.0);
+                    }
+
+                    // 通用浏览器配置
                     ui.checkbox(&mut state.config.browser.headless, "无头模式 (后台运行)");
+                    
+                    // Chrome 路径配置（仅在原生模式下显示）
+                    if state.config.browser.browser_type == crate::config::BrowserType::Native {
+                        ui.horizontal(|ui| {
+                            ui.label("Chrome 路径 (可选):");
+                            let mut chrome_path = state
+                                .config
+                                .browser
+                                .chrome_path
+                                .clone()
+                                .unwrap_or_default();
+                            if ui.text_edit_singleline(&mut chrome_path).changed() {
+                                state.config.browser.chrome_path = empty_string_to_none(chrome_path);
+                            }
+                        });
+                    }
+
                     ui.horizontal(|ui| {
                         ui.label("超时时间 (ms):");
                         ui.add(egui::DragValue::new(&mut state.config.browser.timeout).speed(100));
@@ -1184,13 +1390,71 @@ impl AutoXAccountApp {
                     ui.add_space(16.0);
 
                     // 保存按钮
-                    if ui.button(RichText::new("💾 保存设置").size(16.0)).clicked() {
-                        // 保存配置到文件
-                        if let Err(e) = state.config.to_file("config.json") {
-                            eprintln!("保存配置失败: {}", e);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new("💾 保存设置").size(16.0))
+                                    .fill(self.colors.primary),
+                            )
+                            .clicked()
+                        {
+                            tracing::info!("💾 用户保存配置 / User saving configuration");
+                            // 保存配置到数据目录
+                            if let Err(e) = crate::data_dir::save_config(&state.config) {
+                                tracing::error!("❌ 保存配置失败 / Failed to save config: {}", e);
+                                state.logs.push(format!("❌ 保存配置失败: {}", e));
+                            } else {
+                                tracing::info!("✅ 配置保存成功 / Configuration saved successfully");
+                                tracing::info!("   保存位置 / Save location: {}", crate::data_dir::get_config_path().display());
+                                state.logs.push("✅ 配置已保存".to_string());
+                                state.show_settings = false;
+                            }
                         }
-                        state.show_settings = false;
-                    }
+
+                        ui.add_space(8.0);
+
+                        if ui
+                            .add(egui::Button::new(RichText::new("❌ 取消").size(16.0)))
+                            .clicked()
+                        {
+                            tracing::info!("❌ 用户取消配置修改 / User cancelled configuration changes");
+                            state.show_settings = false;
+                        }
+
+                        ui.add_space(8.0);
+
+                        if ui
+                            .add(
+                                egui::Button::new(RichText::new("📂 打开数据目录").size(14.0))
+                                    .fill(self.colors.secondary),
+                            )
+                            .clicked()
+                        {
+                            // 打开数据目录
+                            let data_dir = crate::data_dir::get_data_dir();
+                            tracing::info!("📂 用户打开数据目录 / User opening data directory: {}", data_dir.display());
+                            if let Err(e) = open::that(&data_dir) {
+                                tracing::error!("❌ 无法打开数据目录 / Failed to open data directory: {}", e);
+                                state
+                                    .logs
+                                    .push(format!("❌ 无法打开数据目录: {}", e));
+                            } else {
+                                tracing::info!("✅ 数据目录已打开 / Data directory opened");
+                            }
+                        }
+                    });
+
+                    ui.add_space(8.0);
+                    
+                    // 显示数据目录位置
+                    ui.label(
+                        RichText::new(format!(
+                            "💾 数据保存位置: {}",
+                            crate::data_dir::get_data_dir().display()
+                        ))
+                        .size(12.0)
+                        .color(self.colors.text_secondary),
+                    );
                 });
             });
     }

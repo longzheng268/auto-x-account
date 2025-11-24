@@ -344,11 +344,72 @@ GUI 界面使用小米 MiSans 字体，提供更好的视觉体验。字体是�
 #### 导出账号
 
 ```bash
+# 导出为 Excel 格式 (推荐)
+./auto-x-account export --output accounts.xlsx --format xlsx
+
 # 导出为 JSON 格式
 ./auto-x-account export --output accounts.json --format json
 
 # 导出为 CSV 格式
 ./auto-x-account export --output accounts.csv --format csv
+```
+
+#### 导入账号
+
+```bash
+# 从 Excel 文件导入
+./auto-x-account import --input accounts.xlsx
+
+# 从 CSV 文件导入
+./auto-x-account import --input accounts.csv
+
+# 从 JSON 文件导入
+./auto-x-account import --input accounts.json
+```
+
+#### 检测浏览器环境
+
+```bash
+# 检测当前浏览器环境是否容易触发验证码
+./auto-x-account detect-browser --verbose
+
+# 简洁输出
+./auto-x-account detect-browser
+```
+
+**浏览器环境检测功能**：
+- 检测 WebDriver 特征
+- 检测浏览器指纹（Canvas、WebGL）
+- 检查插件和字体列表
+- 提供优化建议，降低触发验证码的风险
+
+### 完整命令列表
+
+```bash
+# 查看所有可用命令
+./auto-x-account --help
+
+# GUI 模式 (默认)
+./auto-x-account
+./auto-x-account gui
+
+# 注册单个账号
+./auto-x-account register --email <EMAIL> [--proxy <PROXY_URL>]
+
+# 批量注册
+./auto-x-account batch --count <COUNT> --concurrent <CONCURRENT> [--use-existing-emails]
+
+# 创建邮箱
+./auto-x-account create-emails --count <COUNT> [--output <FILE>] [--verify]
+
+# 导出账号
+./auto-x-account export --output <FILE> --format <json|csv|xlsx>
+
+# 导入账号
+./auto-x-account import --input <FILE>
+
+# 检测浏览器环境
+./auto-x-account detect-browser [--verbose]
 ```
 
 ## ⚙️ 配置
