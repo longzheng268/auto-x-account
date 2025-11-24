@@ -294,8 +294,6 @@ impl XRegistration {
         page: &chromiumoxide::Page,
         account_info: &mut AccountInfo,
     ) -> Result<AccountInfo> {
-        use tokio::time::timeout;
-
         // 访问注册页面
         info!("🔗 访问注册页面 / Navigating to registration page");
         info!("   URL: {}", self.config.x_account.base_url);

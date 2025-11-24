@@ -275,16 +275,17 @@ impl CaptchaHandler {
 
     /// 检测页面中的验证类型
     pub async fn detect_captcha_type(&self, page: &chromiumoxide::Page) -> Option<CaptchaType> {
-        // 检测 Arkose Labs
-        if self
-            .check_element_exists(page, "iframe[src*='arkoselabs']")
-            .await
-            || self
-                .check_element_exists(page, "iframe[src*='funcaptcha']")
-                .await
-        {
-            return Some(CaptchaType::ArkowseLabs);
-        }
+        // 检测 Arkose Labs (已停用)
+        // Note: X discontinued Arkose Labs in late 2023
+        // if self
+        //     .check_element_exists(page, "iframe[src*='arkoselabs']")
+        //     .await
+        //     || self
+        //         .check_element_exists(page, "iframe[src*='funcaptcha']")
+        //         .await
+        // {
+        //     return Some(CaptchaType::Unknown);  // Treat as unknown since it's discontinued
+        // }
 
         // 检测手机验证
         if self
