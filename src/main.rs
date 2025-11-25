@@ -29,7 +29,7 @@ use config::Config;
 use email::EmailService;
 use email_provider::{BatchEmailManager, EmailProvider, EmailProviderConfig};
 use i18n::I18n;
-use registration::XRegistration;
+use registration::{RegistrationRequest, XRegistration};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -279,7 +279,8 @@ async fn run_single_registration(config: Config, email: String, i18n: &I18n) -> 
     // 执行注册
     info!("{}: {}", i18n.t("registration_start"), email);
 
-    match registration.register_account(email).await {
+    let request = RegistrationRequest::new(email.clone());
+    match registration.register_account(request).await {
         Ok(account) => {
             info!("{}", i18n.t("registration_success"));
             info!("用户名 / Username: {}", account.username);
@@ -536,6 +537,10 @@ async fn run_export_accounts(output: String, format: String, _i18n: &I18n) -> Re
             username: acc.username.clone(),
             email: acc.email.clone(),
             password: Some(acc.password.clone()),
+            birth_date: Some(format!(
+                "{}-{}-{}",
+                acc.birth_date.year, acc.birth_date.month, acc.birth_date.day
+            )),
             phone: acc.phone.clone(),
             created_at: Some(acc.created_at.clone()),
             status: Some(acc.status.clone()),

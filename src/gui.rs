@@ -2,9 +2,15 @@
 //! GUI module - Modern Chinese-style interface using egui
 
 use crate::config::{Config, ProxyMode};
+use crate::email::EmailService;
+use crate::import_export;
+use crate::registration::{BirthDate, RegistrationRequest, XRegistration};
 use eframe::egui;
 use egui::{Color32, FontId, RichText, Rounding, Stroke, Vec2};
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use chrono::{Datelike, NaiveDate, Utc};
+use tokio::runtime::Runtime;
 
 /// Helper function to convert empty string to None
 /// 辅助函数：将空字符串转换为 None
@@ -66,6 +72,7 @@ pub struct AppState {
     pub progress: f32,
     pub logs: Vec<String>,
     pub accounts: Vec<AccountDisplay>,
+    pub pending_requests: VecDeque<RegistrationRequest>,
     pub show_settings: bool,
     pub config: Config,
     /// 邮箱输入模式：true=手动输入，false=自动生成
@@ -214,6 +221,7 @@ impl AutoXAccountApp {
 
                 ui.add_space(8.0);
             });
+
         });
 
         ui.add_space(8.0);
@@ -223,6 +231,7 @@ impl AutoXAccountApp {
 
     fn render_main_panel(&self, ui: &mut egui::Ui) {
         let mut state = self.state.lock().unwrap();
+        let mut start_request: Option<(Config, RegistrationRequest)> = None;
 
         // 注册卡片
         egui::Frame::none()
@@ -353,20 +362,19 @@ impl AutoXAccountApp {
 
                 if ui.add(button).clicked() {
                     tracing::info!("🚀 用户点击开始注册按钮 / User clicked start registration button");
-                    tracing::info!("   邮箱模式 / Email mode: {}", if state.email_manual_mode { "手动 / Manual" } else { "自动 / Auto" });
-                    
-                    // TODO: 触发注册流程
-                    // 如果是自动生成模式，先生成邮箱
-                    // NOTE: This requires async runtime integration
-                    if !state.email_manual_mode {
-                        state.status = "正在生成临时邮箱...".to_string();
-                        state.logs.push("📧 开始生成临时邮箱".to_string());
-                        tracing::info!("📧 开始生成临时邮箱 / Starting to generate temporary email");
-                        // 这里应该调用后端API生成邮箱
-                    } else {
+                    if let Some(request) = state.pending_requests.pop_front() {
+                        state.logs.push(format!("🚀 Using imported account: {}", request.email));
+                        state.status = format!("Registering imported account: {}", request.email);
+                        state.email = request.email.clone();
+                        start_request = Some((state.config.clone(), request));
+                    } else if state.email_manual_mode && !state.email.trim().is_empty() {
                         let email = state.email.clone();
-                        state.logs.push(format!("📧 使用邮箱: {}", email));
-                        tracing::info!("📧 使用手动输入邮箱 / Using manual email: {}", email);
+                        state.logs.push(format!("📧 Using manual email: {}", email));
+                        state.status = format!("Registering: {}", email);
+                        start_request = Some((state.config.clone(), RegistrationRequest::new(email)));
+                    } else {
+                        state.logs.push("⚠️ No accounts available. Please import or enter one.".to_string());
+                        state.status = "⚠️ Import accounts or enter an email before starting.".to_string();
                     }
                 }
                 
@@ -384,8 +392,54 @@ impl AutoXAccountApp {
                             .pick_file()
                         {
                             tracing::info!("   选择文件 / Selected file: {}", path.display());
-                            state.logs.push(format!("📥 导入文件: {}", path.display()));
-                            // TODO: 实际导入逻辑
+                            let path_display = path.display().to_string();
+                            state.logs.push(format!("📥 Import file: {}", path_display));
+                            match import_export::import_accounts(&path) {
+                                Ok(accounts) => {
+                                    let mut imported = 0usize;
+                                    for acc in accounts {
+                                        if acc.email.trim().is_empty() {
+                                            continue;
+                                        }
+                                        let request = registration_request_from_data(&acc);
+                                        state.pending_requests.push_back(request);
+                                        let username = if acc.username.trim().is_empty() {
+                                            acc.email.clone()
+                                        } else {
+                                            acc.username.clone()
+                                        };
+                                        let status_text = acc.status.unwrap_or_else(|| "待注册".to_string());
+                                        let created_at = acc.created_at.unwrap_or_else(|| {
+                                            Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+                                        });
+                                        state.accounts.push(AccountDisplay {
+                                            email: acc.email.clone(),
+                                            username,
+                                            status: status_text,
+                                            created_at,
+                                        });
+                                        imported += 1;
+                                    }
+                                    let msg = if imported == 0 {
+                                        "⚠️ No accounts imported (missing email column?)".to_string()
+                                    } else {
+                                        format!(
+                                            "✅ Imported {} accounts, pending queue: {}",
+                                            imported,
+                                            state.pending_requests.len()
+                                        )
+                                    };
+                                    state.logs.push(msg.clone());
+                                    state.status = msg;
+                                    state.email_manual_mode = true;
+                                }
+                                Err(err) => {
+                                    let msg = format!("❌ Import failed: {}", err);
+                                    tracing::error!("{}", msg);
+                                    state.logs.push(msg.clone());
+                                    state.status = msg;
+                                }
+                            }
                         }
                     }
                     
@@ -400,7 +454,7 @@ impl AutoXAccountApp {
                             .save_file()
                         {
                             tracing::info!("   保存到文件 / Save to file: {}", path.display());
-                            state.logs.push(format!("📤 导出到: {}", path.display()));
+                            state.logs.push(format!("📤 Export to: {}", path.display()));
                             // TODO: 实际导出逻辑
                         }
                     }
@@ -408,8 +462,8 @@ impl AutoXAccountApp {
                     // 浏览器检测按钮
                     if ui.button(RichText::new("🔍 检测浏览器环境").size(14.0)).clicked() {
                         tracing::info!("🔍 用户点击检测浏览器环境按钮 / User clicked browser detection button");
-                        state.logs.push("🔍 开始检测浏览器环境...".to_string());
-                        state.status = "正在检测浏览器环境，请稍候...".to_string();
+                        state.logs.push("🔍 Starting browser environment check...".to_string());
+                        state.status = "Checking browser environment... Please wait.".to_string();
                         // TODO: 实际检测逻辑
                     }
                 });
@@ -434,18 +488,26 @@ impl AutoXAccountApp {
                 ui.add_space(8.0);
 
                 egui::ScrollArea::vertical()
+                    .id_source("logs_scroll")
                     .max_height(200.0)
                     .show(ui, |ui| {
-                        for log in &state.logs {
-                            ui.label(
-                                RichText::new(log)
-                                    .size(13.0)
-                                    .color(self.colors.text_secondary)
-                                    .monospace(),
-                            );
+                        for (idx, log) in state.logs.iter().enumerate() {
+                            ui.push_id(idx, |ui| {
+                                ui.label(
+                                    RichText::new(log)
+                                        .size(13.0)
+                                        .color(self.colors.text_secondary)
+                                        .monospace(),
+                                );
+                            });
                         }
                     });
             });
+
+        drop(state);
+        if let Some((config_clone, request)) = start_request {
+            self.spawn_registration_task(config_clone, request);
+        }
     }
 
     fn render_accounts_panel(&self, ui: &mut egui::Ui) {
@@ -475,10 +537,13 @@ impl AutoXAccountApp {
                     );
                 } else {
                     egui::ScrollArea::vertical()
+                        .id_source("accounts_scroll")
                         .max_height(400.0)
                         .show(ui, |ui| {
-                            for account in &state.accounts {
-                                self.render_account_card(ui, account);
+                            for (idx, account) in state.accounts.iter().enumerate() {
+                                ui.push_id(idx, |ui| {
+                                    self.render_account_card(ui, account);
+                                });
                                 ui.add_space(8.0);
                             }
                         });
@@ -1456,9 +1521,98 @@ impl AutoXAccountApp {
                     );
                 });
             });
+
+    }
+
+    fn spawn_registration_task(&self, config: Config, request: RegistrationRequest) {
+        let state_handle = Arc::clone(&self.state);
+        std::thread::spawn(move || {
+            let runtime = Runtime::new().expect("创建 Tokio Runtime 失败");
+            let result = runtime.block_on(async {
+                let email_service = EmailService::new(config.smtp.clone());
+                if config.smtp.enable {
+                    email_service.start().await?;
+                }
+                let registration = XRegistration::new(config.clone(), email_service.get_handler());
+                registration.register_account(request).await
+            });
+
+            let mut state = state_handle.lock().unwrap();
+            match result {
+                Ok(account) => {
+                    let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    state.logs.push(format!("✅ Registered: {}", account.email));
+                    state.status = format!("✅ Completed: {}", account.email);
+                    if let Some(display) = state.accounts.iter_mut().find(|a| a.email == account.email) {
+                        display.status = "registered".to_string();
+                        display.created_at = timestamp.clone();
+                    } else {
+                        state.accounts.push(AccountDisplay {
+                            email: account.email.clone(),
+                            username: account.username.clone(),
+                            status: "registered".to_string(),
+                            created_at: timestamp,
+                        });
+                    }
+                }
+                Err(err) => {
+                    let msg = format!("❌ Registration failed: {}", err);
+                    state.logs.push(msg.clone());
+                    state.status = msg;
+                }
+            }
+        });
     }
 }
 
+fn registration_request_from_data(data: &import_export::AccountData) -> RegistrationRequest {
+    let mut request = RegistrationRequest::new(data.email.clone());
+    if !data.username.trim().is_empty() {
+        request.username = Some(data.username.clone());
+        request.name = Some(data.username.clone());
+    }
+    if let Some(password) = &data.password {
+        if !password.trim().is_empty() {
+            request.password = Some(password.clone());
+        }
+    }
+    if let Some(phone) = &data.phone {
+        if !phone.trim().is_empty() {
+            request.phone = Some(phone.clone());
+        }
+    }
+    if let Some(birth) = data
+        .birth_date
+        .as_deref()
+        .and_then(|s| parse_birth_date(s))
+    {
+        request.birth_date = Some(birth);
+    }
+    request
+}
+
+fn parse_birth_date(value: &str) -> Option<BirthDate> {
+    let cleaned = value.trim();
+    if cleaned.is_empty() {
+        return None;
+    }
+    let formats = [
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%Y.%m.%d",
+    ];
+    for fmt in formats {
+        if let Ok(date) = NaiveDate::parse_from_str(cleaned, fmt) {
+            let month = date.format("%B").to_string();
+            let day = date.day().to_string();
+            let year = date.year().to_string();
+            return Some(BirthDate { month, day, year });
+        }
+    }
+    None
+}
 impl eframe::App for AutoXAccountApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 设置背景色

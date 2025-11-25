@@ -8,6 +8,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -46,6 +47,7 @@ pub struct AccountData {
     pub username: String,
     pub email: String,
     pub password: Option<String>,
+    pub birth_date: Option<String>,
     pub phone: Option<String>,
     pub created_at: Option<String>,
     pub status: Option<String>,
@@ -125,6 +127,7 @@ fn export_accounts_csv<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> Res
         "username",
         "email",
         "password",
+        "birth_date",
         "phone",
         "created_at",
         "status",
@@ -137,6 +140,7 @@ fn export_accounts_csv<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> Res
             &account.username,
             &account.email,
             account.password.as_deref().unwrap_or(""),
+            account.birth_date.as_deref().unwrap_or(""),
             account.phone.as_deref().unwrap_or(""),
             account.created_at.as_deref().unwrap_or(""),
             account.status.as_deref().unwrap_or(""),
@@ -151,34 +155,53 @@ fn export_accounts_csv<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> Res
 fn import_accounts_csv<P: AsRef<Path>>(path: P) -> Result<Vec<AccountData>> {
     let file = File::open(path.as_ref())?;
     let mut reader = csv::Reader::from_reader(file);
-    let mut accounts = Vec::new();
+    let headers = reader.headers()?.clone();
 
+    let find_index = |names: &[&str]| -> Option<usize> {
+        headers.iter().position(|h| {
+            let h_norm = h.trim().to_lowercase();
+            names
+                .iter()
+                .any(|n| h_norm == n.trim().to_lowercase())
+        })
+    };
+
+    let username_idx = find_index(&["username", "user", "账号", "帳號", "帐号"]);
+    let email_idx = find_index(&["email", "邮箱", "mail"]);
+    let password_idx = find_index(&["password", "pass", "密码"]);
+    let birth_idx = find_index(&["birthdate", "birth_date", "birthday", "出生日期"]);
+    let phone_idx = find_index(&["phone", "mobile", "手机号", "電話"]);
+    let created_idx = find_index(&["created_at", "created", "创建时间"]);
+    let status_idx = find_index(&["status", "状态"]);
+    let notes_idx = find_index(&["notes", "备注"]);
+
+    let mut accounts = Vec::new();
     for result in reader.records() {
         let record = result?;
-        
-        if record.len() < 2 {
-            warn!("跳过无效的CSV行: {:?}", record);
-            continue;
-        }
+
+        let get_value = |idx: Option<usize>| -> Option<String> {
+            idx.and_then(|i| record.get(i))
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        };
+
+        let email = match get_value(email_idx) {
+            Some(e) => e,
+            None => {
+                warn!("跳过无邮箱的 CSV 行: {:?}", record);
+                continue;
+            }
+        };
 
         accounts.push(AccountData {
-            username: record.get(0).unwrap_or("").to_string(),
-            email: record.get(1).unwrap_or("").to_string(),
-            password: record.get(2).and_then(|s| {
-                if s.is_empty() { None } else { Some(s.to_string()) }
-            }),
-            phone: record.get(3).and_then(|s| {
-                if s.is_empty() { None } else { Some(s.to_string()) }
-            }),
-            created_at: record.get(4).and_then(|s| {
-                if s.is_empty() { None } else { Some(s.to_string()) }
-            }),
-            status: record.get(5).and_then(|s| {
-                if s.is_empty() { None } else { Some(s.to_string()) }
-            }),
-            notes: record.get(6).and_then(|s| {
-                if s.is_empty() { None } else { Some(s.to_string()) }
-            }),
+            username: get_value(username_idx).unwrap_or_default(),
+            email,
+            password: get_value(password_idx),
+            birth_date: get_value(birth_idx),
+            phone: get_value(phone_idx),
+            created_at: get_value(created_idx),
+            status: get_value(status_idx),
+            notes: get_value(notes_idx),
         });
     }
 
@@ -209,6 +232,7 @@ fn export_accounts_excel<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> R
             "Username",
             "Email",
             "Password",
+            "BirthDate",
             "Phone",
             "Created At",
             "Status",
@@ -221,6 +245,7 @@ fn export_accounts_excel<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> R
                 account.username.clone(),
                 account.email.clone(),
                 account.password.as_deref().unwrap_or(""),
+                account.birth_date.as_deref().unwrap_or(""),
                 account.phone.as_deref().unwrap_or(""),
                 account.created_at.as_deref().unwrap_or(""),
                 account.status.as_deref().unwrap_or(""),
@@ -236,54 +261,77 @@ fn export_accounts_excel<P: AsRef<Path>>(accounts: &[AccountData], path: P) -> R
 }
 
 fn import_accounts_excel<P: AsRef<Path>>(path: P) -> Result<Vec<AccountData>> {
-    use calamine::{Reader, open_workbook, Xlsx};
+    use calamine::{open_workbook, Reader, Xlsx};
 
-    let mut workbook: Xlsx<_> = open_workbook(path.as_ref())
-        .context("无法打开Excel文件")?;
+    let mut workbook: Xlsx<_> = open_workbook(path.as_ref()).context("无法打开Excel文件")?;
 
-    let sheet_name = workbook.sheet_names()
+    let sheet_name = workbook
+        .sheet_names()
         .get(0)
         .context("Excel文件中没有工作表")?
         .clone();
 
-    let range = workbook.worksheet_range(&sheet_name)
+    let range = workbook
+        .worksheet_range(&sheet_name)
         .context("无法读取工作表")?;
-    
-    // 如果工作表为空，返回空列表
+
     if range.is_empty() {
         warn!("工作表为空，返回空账号列表");
         return Ok(Vec::new());
     }
 
-    let mut accounts = Vec::new();
     let mut rows = range.rows();
-
-    // 跳过表头
-    if rows.next().is_none() {
-        return Ok(accounts);
+    let header_row = rows.next().context("Excel 缺少表头")?;
+    let mut header_map = HashMap::new();
+    for (idx, cell) in header_row.iter().enumerate() {
+        let key = cell.to_string().trim().to_lowercase();
+        header_map.insert(key, idx);
     }
 
-    // 读取数据行
-    for row in rows {
-        if row.len() < 2 {
-            continue;
+    let find_idx = |names: &[&str]| -> Option<usize> {
+        for name in names {
+            let key = name.trim().to_lowercase();
+            if let Some(idx) = header_map.get(&key) {
+                return Some(*idx);
+            }
         }
+        None
+    };
 
-        let get_cell_string = |idx: usize| -> Option<String> {
-            row.get(idx).and_then(|cell| {
-                let s = cell.to_string();
-                if s.is_empty() { None } else { Some(s) }
-            })
+    let username_idx = find_idx(&["username", "user", "账号", "帳號", "帐号"]);
+    let email_idx = find_idx(&["email", "邮箱", "mail"]);
+    let password_idx = find_idx(&["password", "pass", "密码"]);
+    let birth_idx = find_idx(&["birthdate", "birth_date", "birthday", "出生日期"]);
+    let phone_idx = find_idx(&["phone", "mobile", "手机号", "電話"]);
+    let created_idx = find_idx(&["created_at", "created", "创建时间"]);
+    let status_idx = find_idx(&["status", "状态"]);
+    let notes_idx = find_idx(&["notes", "备注"]);
+
+    let mut accounts = Vec::new();
+    for row in rows {
+        let get_value = |idx: Option<usize>| -> Option<String> {
+            idx.and_then(|i| row.get(i))
+                .map(|cell| cell.to_string().trim().to_string())
+                .filter(|s| !s.is_empty())
+        };
+
+        let email = match get_value(email_idx) {
+            Some(e) => e,
+            None => {
+                warn!("跳过无邮箱的 Excel 行: {:?}", row);
+                continue;
+            }
         };
 
         accounts.push(AccountData {
-            username: get_cell_string(0).unwrap_or_default(),
-            email: get_cell_string(1).unwrap_or_default(),
-            password: get_cell_string(2),
-            phone: get_cell_string(3),
-            created_at: get_cell_string(4),
-            status: get_cell_string(5),
-            notes: get_cell_string(6),
+            username: get_value(username_idx).unwrap_or_default(),
+            email,
+            password: get_value(password_idx),
+            birth_date: get_value(birth_idx),
+            phone: get_value(phone_idx),
+            created_at: get_value(created_idx),
+            status: get_value(status_idx),
+            notes: get_value(notes_idx),
         });
     }
 

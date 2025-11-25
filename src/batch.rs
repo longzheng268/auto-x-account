@@ -11,7 +11,7 @@ use tracing::{error, info};
 use crate::config::Config;
 use crate::email::EmailHandler;
 use crate::email_provider::BatchEmailManager;
-use crate::registration::{AccountInfo, XRegistration};
+use crate::registration::{AccountInfo, RegistrationRequest, XRegistration};
 
 /// 批量注册任务状态
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -277,7 +277,8 @@ impl BatchRegistrationManager {
 
         // 执行注册
         let registration = XRegistration::new(self.config.clone(), self.email_handler.clone());
-        let account = registration.register_account(email.address).await?;
+        let request = RegistrationRequest::new(email.address);
+        let account = registration.register_account(request).await?;
 
         Ok(account)
     }

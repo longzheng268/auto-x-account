@@ -5,6 +5,8 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
+use std::fs;
+use chrono::Utc;
 use tracing::info;
 
 /// 获取应用程序数据目录
@@ -83,6 +85,17 @@ pub fn get_screenshots_dir() -> PathBuf {
 /// Get browser data directory
 pub fn get_browser_data_dir() -> PathBuf {
     get_data_dir().join("browser_data")
+}
+
+/// 为浏览器自动化会话创建唯一的临时目录
+/// Create a unique temporary browser profile directory
+pub fn create_temporary_browser_dir() -> Result<PathBuf> {
+    let base = std::env::temp_dir().join("auto-x-browser");
+    fs::create_dir_all(&base)?;
+    let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%3f");
+    let dir = base.join(format!("session_{}", timestamp));
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
 }
 
 /// 初始化所有必需的目录
