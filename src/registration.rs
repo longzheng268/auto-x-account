@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::config::Config;
 use crate::email::EmailHandler;
@@ -251,19 +251,32 @@ impl XRegistration {
         builder = builder
             .arg("--lang=zh-CN")
             .arg("--accept-lang=zh-CN,zh")
-            .arg("--disable-blink-features=AutomationControlled");
+            .arg("--disable-blink-features=AutomationControlled")
+            // 增加稳定性参数
+            .arg("--no-sandbox")
+            .arg("--disable-gpu")
+            .arg("--disable-dev-shm-usage")
+            .arg("--disable-software-rasterizer")
+            .arg("--disable-software-rasterizer");
 
-        // 设置用户数据目录
-        let user_data_dir = crate::data_dir::get_browser_data_dir();
-        std::fs::create_dir_all(&user_data_dir)?;
-        builder = builder.user_data_dir(&user_data_dir);
-        info!("   数据目录 / Data directory: {}", user_data_dir.display());
+        // 设置固定的用户数据目录，避免权限问题
+        let temp_dir = std::env::temp_dir().join("auto-x-account-browser-data");
+        // 每次启动前清理旧数据，确保干净的环境
+        if temp_dir.exists() {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+        }
+        std::fs::create_dir_all(&temp_dir)?;
+        builder = builder.user_data_dir(&temp_dir);
+        info!("   数据目录 / Data directory: {}", temp_dir.display());
 
         // 启动浏览器 / Launch browser
         info!("🌐 启动浏览器 / Launching browser...");
-        let (mut browser, mut handler) = Browser::launch(
-            builder.build().map_err(|e| anyhow::anyhow!("Browser configuration error / 浏览器配置错误: {}", e))?
-        ).await?;
+        
+        // 构建配置
+        let config = builder.build()
+            .map_err(|e| anyhow::anyhow!("Browser configuration error / 浏览器配置错误: {}", e))?;
+            
+        let (mut browser, mut handler) = Browser::launch(config).await?;
         info!("✅ 浏览器已启动 / Browser launched successfully");
 
         // 处理浏览器事件
@@ -305,18 +318,129 @@ impl XRegistration {
         result
     }
 
+    /// 检查并处理 403 错误 (循环检查直到恢复)
+    async fn check_and_handle_403(&self, page: &chromiumoxide::Page) -> Result<()> {
+        let max_retries = 10; // 增加重试次数
+        for i in 0..max_retries {
+            let check_result = page.evaluate(r#"
+                (function() {
+                    // 1. 检查标题
+                    if (document.title.includes('403') || document.title.includes('Forbidden')) return true;
+                    
+                    // 2. 检查页面内容的关键短语
+                    const text = document.body.innerText;
+                    if (text.includes('403 Forbidden') || 
+                        text.includes('Access Denied') || 
+                        text.includes('Please reload') ||
+                        text.includes('Something went wrong, but don’t fret') ||
+                        text.includes('出错啦，但别担心')) return true;
+
+                    // 3. 检查重试按钮 (通常是蓝色的 "Retry" 或 "重试")
+                    const buttons = document.querySelectorAll('div[role="button"], button');
+                    for (let btn of buttons) {
+                        const btnText = (btn.innerText || '').trim();
+                        if (btnText === 'Retry' || btnText === '重试') {
+                            return true;
+                        }
+                    }
+                        
+                    return false;
+                })()
+            "#).await;
+
+            if let Ok(val) = check_result {
+                if val.into_value::<bool>().unwrap_or(false) {
+                    warn!("⚠️  检测到 403/错误页面 (尝试 {}/{})，正在处理... / 403/Error detected, handling...", i + 1, max_retries);
+                    
+                    // 尝试点击重试按钮
+                    let clicked_retry = page.evaluate(r#"
+                        (function() {
+                            const buttons = document.querySelectorAll('div[role="button"], button');
+                            for (let btn of buttons) {
+                                const btnText = (btn.innerText || '').trim();
+                                if (btnText === 'Retry' || btnText === '重试') {
+                                    btn.click();
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })()
+                    "#).await;
+                    
+                    if let Ok(clicked) = clicked_retry {
+                        if clicked.into_value::<bool>().unwrap_or(false) {
+                            info!("   👉 已点击重试按钮 / Clicked Retry button");
+                            sleep(Duration::from_secs(5)).await;
+                            continue;
+                        }
+                    }
+
+                    // 如果没找到按钮或点击无效，则刷新页面
+                    info!("   🔄 刷新页面 / Refreshing page");
+                    page.reload().await?;
+                    sleep(Duration::from_secs(5)).await;
+                    continue;
+                }
+            }
+            
+            // 如果没有检测到错误，且不是第一次检查（说明之前可能有错误但已恢复），或者第一次就没错误
+            if i > 0 {
+                info!("✅ 页面已恢复正常 / Page recovered");
+            }
+            return Ok(());
+        }
+        
+        warn!("⚠️  多次尝试后页面仍可能有问题 / Page might still be broken after retries");
+        Ok(())
+    }
+
     async fn perform_registration(
         &self,
         page: &chromiumoxide::Page,
         account_info: &mut AccountInfo,
     ) -> Result<AccountInfo> {
-        // 访问注册页面
+        // 访问注册页面 (增加重试机制)
         info!("🔗 访问注册页面 / Navigating to registration page");
         info!("   URL: {}", self.config.x_account.base_url);
-        page.goto(&self.config.x_account.base_url).await?;
-        info!("✅ 页面加载完成 / Page loaded");
-        sleep(Duration::from_secs(3)).await;
+        
+        let mut attempts = 0;
+        let max_attempts = 3;
+        
+        while attempts < max_attempts {
+            match page.goto(&self.config.x_account.base_url).await {
+                Ok(_) => {
+                    info!("✅ 页面加载指令已发送 / Navigation command sent");
+                    break;
+                },
+                Err(e) => {
+                    attempts += 1;
+                    warn!("⚠️  页面跳转失败 (尝试 {}/{}) / Navigation failed: {}", attempts, max_attempts, e);
+                    if attempts == max_attempts {
+                        anyhow::bail!("无法访问注册页面 / Could not navigate to registration page: {}", e);
+                    }
+                    sleep(Duration::from_secs(2)).await;
+                }
+            }
+        }
+        
+        // 等待页面加载完成
+        sleep(Duration::from_secs(5)).await;
+        
+        // 检查 403
+        self.check_and_handle_403(page).await?;
+        
+        // 检查当前URL确认是否跳转成功
+        let current_url = page.url().await.unwrap_or(None).unwrap_or_default();
+        info!("   当前 URL / Current URL: {}", current_url);
+        
+        if !current_url.contains("twitter.com") && !current_url.contains("x.com") {
+             warn!("⚠️  似乎未成功跳转到 X/Twitter，尝试重新跳转...");
+             page.goto(&self.config.x_account.base_url).await?;
+             sleep(Duration::from_secs(5)).await;
+        }
 
+        info!("✅ 页面加载完成 / Page loaded");
+        self.take_screenshot(page, "01_registration_page").await?;
 
         // 步骤1: 使用图像识别点击"创建账号"按钮
         info!("🔘 步骤1: 点击创建账号按钮 / Step 1: Click Sign up button");
@@ -329,7 +453,6 @@ impl XRegistration {
         info!("📧 步骤2: 切换到邮箱注册 / Step 2: Switch to email registration");
         if let Err(e) = self.switch_to_email_registration(page).await {
             warn!("切换到邮箱注册失败，尝试继续 / Failed to switch to email: {}", e);
-            // 可能已经是邮箱模式，继续
         }
         sleep(Duration::from_secs(2)).await;
 
@@ -368,10 +491,7 @@ impl XRegistration {
             info!("⚠️  检测到人机验证 / Captcha detected");
             self.take_screenshot(page, "05_captcha_detected").await?;
             
-            // 这里可以尝试自动识别，或者等待手动完成
             info!("⏳ 等待手动完成人机验证 / Waiting for manual captcha completion");
-            info!("   请在浏览器中完成左侧数字与右侧图片匹配的验证");
-            info!("   Please complete the captcha matching numbers with images");
             
             // 等待验证完成（最多3分钟）
             let captcha_timeout = Duration::from_secs(180);
@@ -473,27 +593,44 @@ impl XRegistration {
 
     /// 切换到邮箱注册模式
     async fn switch_to_email_registration(&self, page: &chromiumoxide::Page) -> Result<()> {
-        info!("   查找'使用邮箱'按钮 / Looking for 'Use email' button");
+        info!("   查找'改用电子邮件'按钮 / Looking for 'Use email' button");
         
-        // 尝试多个可能的选择器
-        let selectors = vec![
-            "span:has-text('Use email instead')",
-            "span:has-text('使用电子邮件')",
-            "a:has-text('Use email')",
-            "[data-testid='switch-to-email']",
-            "span[dir='ltr']:has-text('email')",
-        ];
-
-        for selector in selectors {
-            if let Ok(element) = page.find_element(selector).await {
-                info!("   找到切换按钮，点击 / Found switch button, clicking");
-                element.click().await?;
-                return Ok(());
+        let js_script = r#"
+        (function() {
+            // 查找包含特定文本的元素
+            const targets = ['改用电子邮件', 'Use email instead', '改用电子邮箱'];
+            // 扩大查找范围
+            const elements = document.querySelectorAll('span, div[role="button"], button, a');
+            
+            for (let el of elements) {
+                const text = (el.innerText || '').trim();
+                if (targets.includes(text)) {
+                    console.log('找到切换按钮:', text);
+                    el.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+        "#;
+        
+        for i in 0..5 {
+            if i > 0 {
+                sleep(Duration::from_secs(1)).await;
+            }
+            
+            match page.evaluate(js_script).await {
+                Ok(val) => {
+                    if val.into_value::<bool>()? {
+                        info!("   ✅ 通过 JS 点击了切换按钮 / Clicked switch button via JS");
+                        return Ok(());
+                    }
+                },
+                Err(e) => warn!("   JS 切换失败: {} / JS switch failed: {}", e, e),
             }
         }
-
-        // 如果没找到，可能已经是邮箱模式
-        warn!("   未找到切换按钮，可能已是邮箱模式 / Switch button not found, may already be in email mode");
+        
+        warn!("   未找到切换按钮 (可能已是邮箱模式) / Switch button not found");
         Ok(())
     }
 
@@ -502,24 +639,18 @@ impl XRegistration {
         info!("   正在查找姓名输入框 / Looking for name input...");
 
         // 方法1: 通过 JS 智能查找并聚焦
-        // Method 1: Smart search and focus via JS
         let found = page.evaluate(r#"
             (function() {
-                // 1. 优先查找明确的 name 属性 / Priority: explicit name attribute
                 const nameInput = document.querySelector('input[name="name"]');
                 if (nameInput) {
                     nameInput.focus();
                     return true;
                 }
-
-                // 2. 查找 autocomplete / Check autocomplete
                 const autoInput = document.querySelector('input[autocomplete="name"]');
                 if (autoInput) {
                     autoInput.focus();
                     return true;
                 }
-
-                // 3. 遍历所有输入框检查属性 / Iterate inputs checking attributes
                 const inputs = document.querySelectorAll('input');
                 for (const input of inputs) {
                     const attr = (input.getAttribute('name') || input.getAttribute('autocomplete') || input.placeholder || '').toLowerCase();
@@ -528,29 +659,6 @@ impl XRegistration {
                         return true;
                     }
                 }
-
-                // 4. 检查 Label / Check labels
-                const labels = document.querySelectorAll('label');
-                for (const label of labels) {
-                    const text = (label.innerText || '').toLowerCase();
-                    if (text.includes('name') || text.includes('名字') || text.includes('姓名')) {
-                        const input = document.getElementById(label.getAttribute('for')) || label.querySelector('input');
-                        if (input) {
-                            input.focus();
-                            return true;
-                        }
-                    }
-                }
-
-                // 5. 最后的手段：找第一个可见的文本输入框 / Last resort: first visible text input
-                // 通常注册弹窗的第一个输入框就是名字
-                for (const input of inputs) {
-                    if (input.type === 'text' && input.offsetParent !== null) {
-                        input.focus();
-                        return true;
-                    }
-                }
-                
                 return false;
             })()
         "#).await;
@@ -560,7 +668,31 @@ impl XRegistration {
                 if val.into_value::<bool>()? {
                     info!("   ✅ 通过 JS 找到并聚焦姓名输入框 / Found and focused name input via JS");
                     sleep(Duration::from_millis(500)).await;
-                    page.keyboard().type_str(name).await?;
+                    
+                    let js_value = serde_json::to_string(name)?;
+                    let script = format!(r#"
+                        (function() {{
+                            const element = document.activeElement;
+                            if (!element) return false;
+                            const value = {};
+                            
+                            const valueSetter = Object.getOwnPropertyDescriptor(element, 'value').set;
+                            const prototype = Object.getPrototypeOf(element);
+                            const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+                            
+                            if (valueSetter && valueSetter !== prototypeValueSetter) {{
+                                prototypeValueSetter.call(element, value);
+                            }} else {{
+                                valueSetter.call(element, value);
+                            }}
+                            
+                            element.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            element.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            return true;
+                        }})()
+                    "#, js_value);
+                    
+                    page.evaluate(script).await?;
                     info!("   ✅ 姓名已填写 / Name filled");
                     return Ok(());
                 }
@@ -569,7 +701,6 @@ impl XRegistration {
         }
 
         // 方法2: 传统的选择器回退
-        // Method 2: Traditional selectors fallback
         let selectors = vec![
             "input[name='name']",
             "input[autocomplete='name']",
@@ -591,21 +722,22 @@ impl XRegistration {
 
     /// 使用图像识别点击创建账号按钮
     async fn click_signup_button_by_image(&self, page: &chromiumoxide::Page) -> Result<()> {
-        // 方法1: 先尝试通过JavaScript查找动态生成的文本
-        info!("   方法1: 尝试通过JavaScript查找按钮 / Method 1: Trying JavaScript search");
+        info!("   方法1: 尝试通过JavaScript查找按钮 (文本+样式) / Method 1: Trying JavaScript search (text+style)");
         
         let js_script = r#"
         (function() {
-            // 查找所有可能的按钮元素
             const buttons = document.querySelectorAll('button, div[role="button"], a[role="button"]');
-            
             for (let btn of buttons) {
-                const text = btn.innerText || btn.textContent || '';
-                console.log('找到按钮文本:', text);
-                
-                // 检查是否包含"创建账号"或"创建帐号"
+                const text = (btn.innerText || btn.textContent || '').trim();
                 if (text.includes('创建账号') || text.includes('创建帐号') || text.includes('创建帳號')) {
-                    console.log('找到创建账号按钮!');
+                    const style = window.getComputedStyle(btn);
+                    const bgColor = style.backgroundColor;
+                    if (bgColor.includes('0, 0, 0') || bgColor === 'black' || bgColor === '#000000') {
+                         console.log('找到黑色创建账号按钮!', text);
+                         btn.click();
+                         return true;
+                    }
+                    console.log('找到创建账号按钮(非纯黑):', text);
                     btn.click();
                     return true;
                 }
@@ -614,31 +746,42 @@ impl XRegistration {
         })()
         "#;
         
-        match page.evaluate(js_script).await {
-            Ok(_) => {
-                info!("   ✅ 通过JavaScript成功点击按钮 / Successfully clicked via JavaScript");
-                return Ok(());
+        // 增加重试机制
+        for i in 0..5 {
+            if i > 0 {
+                // 在重试前检查是否是 403
+                if let Err(e) = self.check_and_handle_403(page).await {
+                    warn!("   检查 403 失败: {} / Failed to check 403: {}", e, e);
+                }
+
+                sleep(Duration::from_secs(2)).await;
+                info!("   重试查找按钮 ({}/5) / Retrying button search ({}/5)", i + 1, 5);
             }
-            Err(e) => {
-                warn!("   JavaScript方法失败: {} / JavaScript method failed: {}", e, e);
+            
+            match page.evaluate(js_script).await {
+                Ok(val) => {
+                    if val.into_value::<bool>()? {
+                        info!("   ✅ 通过JavaScript成功点击按钮 / Successfully clicked via JavaScript");
+                        return Ok(());
+                    }
+                },
+                Err(e) => {
+                     debug!("   JS 执行出错 (可能页面正在加载): {} / JS execution error: {}", e, e);
+                }
             }
         }
         
-        // 方法2: 如果JavaScript失败，使用图像识别
         info!("   方法2: 使用图像识别 / Method 2: Using image recognition");
         
-        // 截取当前页面
         let screenshot = page
             .screenshot(chromiumoxide::page::ScreenshotParams::builder().build())
             .await?;
         
-        // 保存截图到 AppData 用于调试
         let screenshots_dir = crate::data_dir::get_screenshots_dir();
         let debug_screenshot_path = screenshots_dir.join("debug_before_click.png");
         std::fs::write(&debug_screenshot_path, &screenshot)?;
         info!("   📸 调试截图已保存 / Debug screenshot saved: {}", debug_screenshot_path.display());
         
-        // 模板图片路径（使用绝对路径）
         let template_path = std::env::current_dir()?
             .join("src")
             .join("resources")
@@ -649,20 +792,14 @@ impl XRegistration {
             anyhow::bail!("模板图片不存在 / Template image not found: {}", template_path.display());
         }
         
-        info!("   模板图片路径 / Template path: {}", template_path.display());
-        
-        // 使用图像识别查找按钮（降低阈值到 0.5，更宽松）
         if let Some((x, y)) = crate::visual::find_button_by_template(
             &screenshot, 
             template_path.to_str().unwrap(), 
-            Some(0.5)  // 进一步降低阈值
+            Some(0.5)
         )? {
             info!("   ✅ 通过图像识别找到按钮 / Found button via image recognition");
-            
-            // 点击找到的位置
             crate::visual::click_at_coordinates(page, x, y).await?;
             info!("   ✅ 已点击创建账号按钮 / Clicked sign up button");
-            
             return Ok(());
         }
         
@@ -674,17 +811,16 @@ impl XRegistration {
         info!("   正在查找邮箱输入框 / Looking for email input...");
 
         // 方法1: 通过 JS 智能查找并聚焦
-        // Method 1: Smart search and focus via JS
         let found = page.evaluate(r#"
             (function() {
-                // 1. 优先查找明确的 name/type 属性 / Priority: explicit name/type
+                // 1. 优先查找明确的 name/type 属性
                 const emailInput = document.querySelector('input[name="email"]') || document.querySelector('input[type="email"]');
                 if (emailInput) {
                     emailInput.focus();
                     return true;
                 }
 
-                // 2. 遍历输入框 / Iterate inputs
+                // 2. 遍历输入框
                 const inputs = document.querySelectorAll('input');
                 for (const input of inputs) {
                     const attr = (input.getAttribute('name') || input.getAttribute('autocomplete') || input.placeholder || '').toLowerCase();
@@ -693,30 +829,41 @@ impl XRegistration {
                         return true;
                     }
                 }
-
-                // 3. 检查 Label / Check labels
-                const labels = document.querySelectorAll('label');
-                for (const label of labels) {
-                    const text = (label.innerText || '').toLowerCase();
-                    if (text.includes('email') || text.includes('邮箱')) {
-                        const input = document.getElementById(label.getAttribute('for')) || label.querySelector('input');
-                        if (input) {
-                            input.focus();
-                            return true;
-                        }
-                    }
-                }
-
                 return false;
             })()
         "#).await;
 
         match found {
-             Ok(val) => {
+            Ok(val) => {
                 if val.into_value::<bool>()? {
                     info!("   ✅ 通过 JS 找到并聚焦邮箱输入框 / Found and focused email input via JS");
                     sleep(Duration::from_millis(500)).await;
-                    page.keyboard().type_str(email).await?;
+                    
+                    // 使用 JS 设置值 (React 兼容)
+                    let js_value = serde_json::to_string(email)?;
+                    let script = format!(r#"
+                        (function() {{
+                            const element = document.activeElement;
+                            if (!element) return false;
+                            const value = {};
+                            
+                            const valueSetter = Object.getOwnPropertyDescriptor(element, 'value').set;
+                            const prototype = Object.getPrototypeOf(element);
+                            const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+                            
+                            if (valueSetter && valueSetter !== prototypeValueSetter) {{
+                                prototypeValueSetter.call(element, value);
+                            }} else {{
+                                valueSetter.call(element, value);
+                            }}
+                            
+                            element.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            element.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            return true;
+                        }})()
+                    "#, js_value);
+                    
+                    page.evaluate(script).await?;
                     info!("   ✅ 邮箱已填写 / Email filled");
                     return Ok(());
                 }
@@ -725,7 +872,6 @@ impl XRegistration {
         }
 
         // 方法2: 传统的选择器回退
-        // Method 2: Traditional selectors fallback
         let selectors = vec![
             "input[name='email']",
             "input[autocomplete='email']",
@@ -745,6 +891,7 @@ impl XRegistration {
 
         anyhow::bail!("未找到邮箱输入框 / Email input not found")
     }
+
 
     /// 填写出生日期
     async fn fill_birth_date(&self, page: &chromiumoxide::Page, birth_date: &BirthDate) -> Result<()> {
@@ -777,10 +924,70 @@ impl XRegistration {
 
     /// 点击下一步按钮
     async fn click_next_button(&self, page: &chromiumoxide::Page) -> Result<()> {
+        info!("   查找'下一步'按钮 / Looking for 'Next' button");
+        
+        // 方法1: JS 查找 (文本匹配)
+        let js_script = r#"
+        (function() {
+            const targets = ['Next', '下一步', '继续'];
+            const buttons = document.querySelectorAll('button, div[role="button"]');
+            
+            for (let btn of buttons) {
+                const text = (btn.innerText || '').trim();
+                // 精确匹配或包含匹配
+                if (targets.includes(text) || (text.length < 10 && (text.includes('Next') || text.includes('下一步')))) {
+                    // 检查是否可见
+                    const style = window.getComputedStyle(btn);
+                    if (style.display !== 'none' && style.visibility !== 'hidden') {
+                        if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') {
+                            console.log('找到下一步按钮，但是被禁用了:', text);
+                            return 'disabled';
+                        }
+                        console.log('找到下一步按钮:', text);
+                        btn.click();
+                        return 'clicked';
+                    }
+                }
+            }
+            
+            // 尝试通过 data-testid
+            const testIdBtn = document.querySelector('[data-testid="ocfEnterTextNextButton"]');
+            if (testIdBtn) {
+                if (testIdBtn.disabled || testIdBtn.getAttribute('aria-disabled') === 'true') {
+                     return 'disabled';
+                }
+                testIdBtn.click();
+                return 'clicked';
+            }
+            
+            return 'not_found';
+        })()
+        "#;
+        
+        // 增加重试
+        for i in 0..5 {
+            if i > 0 {
+                sleep(Duration::from_secs(1)).await;
+            }
+            
+            match page.evaluate(js_script).await {
+                Ok(val) => {
+                    let result: String = val.into_value()?;
+                    if result == "clicked" {
+                        info!("   ✅ 通过 JS 点击了 Next 按钮 / Clicked Next button via JS");
+                        return Ok(());
+                    } else if result == "disabled" {
+                        warn!("   ⚠️  Next 按钮存在但被禁用 (可能是表单未完成或有错误) / Next button disabled");
+                        // 检查是否有错误提示
+                        self.check_form_errors(page).await?;
+                    }
+                },
+                Err(e) => warn!("   JS 点击失败: {} / JS click failed: {}", e, e),
+            }
+        }
+
+        // 方法2: 尝试特定的 CSS 选择器 (作为备选)
         let selectors = vec![
-            "button:has-text('Next')",
-            "button:has-text('下一步')",
-            "div[role='button']:has-text('Next')",
             "[data-testid='ocfEnterTextNextButton']",
             "button[type='submit']",
         ];
@@ -788,12 +995,38 @@ impl XRegistration {
         for selector in selectors {
             if let Ok(element) = page.find_element(selector).await {
                 element.click().await?;
-                info!("   ✅ Next 按钮已点击 / Next button clicked");
+                info!("   ✅ Next 按钮已点击 (选择器) / Next button clicked (selector)");
                 return Ok(());
             }
         }
 
         anyhow::bail!("未找到 Next 按钮 / Next button not found")
+    }
+
+    /// 检查表单错误
+    async fn check_form_errors(&self, page: &chromiumoxide::Page) -> Result<()> {
+        let js_script = r#"
+        (function() {
+            // 查找常见的错误提示元素
+            // X 的错误提示通常在 input 下方，或者有特定的 role="alert"
+            const errors = document.querySelectorAll('[data-testid="app-bar-close"], div[role="alert"], span[style*="color: rgb(244, 33, 46)"], span[style*="color: rgb(220, 30, 41)"]');
+            for (let err of errors) {
+                const text = err.innerText;
+                if (text && (text.includes('taken') || text.includes('registered') || text.includes('已被注册') || text.includes('占用') || text.includes('valid'))) {
+                    return text;
+                }
+            }
+            return null;
+        })()
+        "#;
+        
+        if let Ok(val) = page.evaluate(js_script).await {
+            if let Some(err_msg) = val.into_value::<Option<String>>()? {
+                warn!("⚠️  检测到表单错误: {} / Form error detected: {}", err_msg, err_msg);
+                // 这里我们不 bail，只是记录警告，让上层决定是否继续（虽然通常意味着无法继续）
+            }
+        }
+        Ok(())
     }
 
     /// 检查是否有人机验证
