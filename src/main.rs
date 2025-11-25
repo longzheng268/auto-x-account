@@ -17,6 +17,7 @@ mod i18n;
 mod import_export;
 mod logging;
 mod registration;
+mod visual;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};

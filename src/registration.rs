@@ -90,9 +90,18 @@ impl XRegistration {
         // 3. 检查系统安装的 Chromium/Chrome
         let system_paths = if cfg!(target_os = "windows") {
             vec![
+                // Microsoft Edge (优先，Windows 内置)
+                PathBuf::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+                PathBuf::from(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+                // Google Chrome
                 PathBuf::from(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
                 PathBuf::from(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+                // Chromium
                 PathBuf::from(r"C:\Program Files\Chromium\Application\chrome.exe"),
+                PathBuf::from(r"C:\Program Files (x86)\Chromium\Application\chrome.exe"),
+                // Brave
+                PathBuf::from(r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"),
+                PathBuf::from(r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"),
             ]
         } else if cfg!(target_os = "macos") {
             vec![
@@ -237,6 +246,13 @@ impl XRegistration {
             info!("   代理 / Proxy: 不使用 / Not using");
         }
 
+        // 强制使用中文环境
+        info!("   语言 / Language: 简体中文 / Simplified Chinese (zh-CN)");
+        builder = builder
+            .arg("--lang=zh-CN")
+            .arg("--accept-lang=zh-CN,zh")
+            .arg("--disable-blink-features=AutomationControlled");
+
         // 设置用户数据目录
         let user_data_dir = crate::data_dir::get_browser_data_dir();
         std::fs::create_dir_all(&user_data_dir)?;
@@ -301,18 +317,21 @@ impl XRegistration {
         info!("✅ 页面加载完成 / Page loaded");
         sleep(Duration::from_secs(3)).await;
 
-        // 截图
-        info!("📸 截图: 注册页面 / Screenshot: Registration page");
-        self.take_screenshot(page, "01_signup_page").await?;
 
-        // 步骤1: 切换到邮箱注册
-        info!("📧 步骤1: 切换到邮箱注册 / Step 1: Switch to email registration");
+        // 步骤1: 使用图像识别点击"创建账号"按钮
+        info!("🔘 步骤1: 点击创建账号按钮 / Step 1: Click Sign up button");
+        if let Err(e) = self.click_signup_button_by_image(page).await {
+            warn!("图像识别点击失败，尝试选择器方式 / Image recognition failed, trying selectors: {}", e);
+        }
+        sleep(Duration::from_secs(2)).await;
+
+        // 步骤2: 切换到邮箱注册
+        info!("📧 步骤2: 切换到邮箱注册 / Step 2: Switch to email registration");
         if let Err(e) = self.switch_to_email_registration(page).await {
             warn!("切换到邮箱注册失败，尝试继续 / Failed to switch to email: {}", e);
             // 可能已经是邮箱模式，继续
         }
         sleep(Duration::from_secs(2)).await;
-        self.take_screenshot(page, "02_email_mode").await?;
 
         // 步骤2: 填写姓名
         info!("✏️  步骤2: 填写姓名 / Step 2: Fill in name");
@@ -480,6 +499,77 @@ impl XRegistration {
 
     /// 填写姓名
     async fn fill_name(&self, page: &chromiumoxide::Page, name: &str) -> Result<()> {
+        info!("   正在查找姓名输入框 / Looking for name input...");
+
+        // 方法1: 通过 JS 智能查找并聚焦
+        // Method 1: Smart search and focus via JS
+        let found = page.evaluate(r#"
+            (function() {
+                // 1. 优先查找明确的 name 属性 / Priority: explicit name attribute
+                const nameInput = document.querySelector('input[name="name"]');
+                if (nameInput) {
+                    nameInput.focus();
+                    return true;
+                }
+
+                // 2. 查找 autocomplete / Check autocomplete
+                const autoInput = document.querySelector('input[autocomplete="name"]');
+                if (autoInput) {
+                    autoInput.focus();
+                    return true;
+                }
+
+                // 3. 遍历所有输入框检查属性 / Iterate inputs checking attributes
+                const inputs = document.querySelectorAll('input');
+                for (const input of inputs) {
+                    const attr = (input.getAttribute('name') || input.getAttribute('autocomplete') || input.placeholder || '').toLowerCase();
+                    if (attr.includes('name') || attr.includes('名字') || attr.includes('姓名')) {
+                        input.focus();
+                        return true;
+                    }
+                }
+
+                // 4. 检查 Label / Check labels
+                const labels = document.querySelectorAll('label');
+                for (const label of labels) {
+                    const text = (label.innerText || '').toLowerCase();
+                    if (text.includes('name') || text.includes('名字') || text.includes('姓名')) {
+                        const input = document.getElementById(label.getAttribute('for')) || label.querySelector('input');
+                        if (input) {
+                            input.focus();
+                            return true;
+                        }
+                    }
+                }
+
+                // 5. 最后的手段：找第一个可见的文本输入框 / Last resort: first visible text input
+                // 通常注册弹窗的第一个输入框就是名字
+                for (const input of inputs) {
+                    if (input.type === 'text' && input.offsetParent !== null) {
+                        input.focus();
+                        return true;
+                    }
+                }
+                
+                return false;
+            })()
+        "#).await;
+
+        match found {
+            Ok(val) => {
+                if val.into_value::<bool>()? {
+                    info!("   ✅ 通过 JS 找到并聚焦姓名输入框 / Found and focused name input via JS");
+                    sleep(Duration::from_millis(500)).await;
+                    page.keyboard().type_str(name).await?;
+                    info!("   ✅ 姓名已填写 / Name filled");
+                    return Ok(());
+                }
+            },
+            Err(e) => warn!("   JS 查找失败: {} / JS search failed: {}", e, e),
+        }
+
+        // 方法2: 传统的选择器回退
+        // Method 2: Traditional selectors fallback
         let selectors = vec![
             "input[name='name']",
             "input[autocomplete='name']",
@@ -491,7 +581,7 @@ impl XRegistration {
             if let Ok(element) = page.find_element(selector).await {
                 element.click().await?;
                 element.type_str(name).await?;
-                info!("   ✅ 姓名已填写 / Name filled");
+                info!("   ✅ 姓名已填写 (选择器) / Name filled (selector)");
                 return Ok(());
             }
         }
@@ -499,8 +589,143 @@ impl XRegistration {
         anyhow::bail!("未找到姓名输入框 / Name input not found")
     }
 
+    /// 使用图像识别点击创建账号按钮
+    async fn click_signup_button_by_image(&self, page: &chromiumoxide::Page) -> Result<()> {
+        // 方法1: 先尝试通过JavaScript查找动态生成的文本
+        info!("   方法1: 尝试通过JavaScript查找按钮 / Method 1: Trying JavaScript search");
+        
+        let js_script = r#"
+        (function() {
+            // 查找所有可能的按钮元素
+            const buttons = document.querySelectorAll('button, div[role="button"], a[role="button"]');
+            
+            for (let btn of buttons) {
+                const text = btn.innerText || btn.textContent || '';
+                console.log('找到按钮文本:', text);
+                
+                // 检查是否包含"创建账号"或"创建帐号"
+                if (text.includes('创建账号') || text.includes('创建帐号') || text.includes('创建帳號')) {
+                    console.log('找到创建账号按钮!');
+                    btn.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+        "#;
+        
+        match page.evaluate(js_script).await {
+            Ok(_) => {
+                info!("   ✅ 通过JavaScript成功点击按钮 / Successfully clicked via JavaScript");
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("   JavaScript方法失败: {} / JavaScript method failed: {}", e, e);
+            }
+        }
+        
+        // 方法2: 如果JavaScript失败，使用图像识别
+        info!("   方法2: 使用图像识别 / Method 2: Using image recognition");
+        
+        // 截取当前页面
+        let screenshot = page
+            .screenshot(chromiumoxide::page::ScreenshotParams::builder().build())
+            .await?;
+        
+        // 保存截图到 AppData 用于调试
+        let screenshots_dir = crate::data_dir::get_screenshots_dir();
+        let debug_screenshot_path = screenshots_dir.join("debug_before_click.png");
+        std::fs::write(&debug_screenshot_path, &screenshot)?;
+        info!("   📸 调试截图已保存 / Debug screenshot saved: {}", debug_screenshot_path.display());
+        
+        // 模板图片路径（使用绝对路径）
+        let template_path = std::env::current_dir()?
+            .join("src")
+            .join("resources")
+            .join("images")
+            .join("create_account_btn.png");
+        
+        if !template_path.exists() {
+            anyhow::bail!("模板图片不存在 / Template image not found: {}", template_path.display());
+        }
+        
+        info!("   模板图片路径 / Template path: {}", template_path.display());
+        
+        // 使用图像识别查找按钮（降低阈值到 0.5，更宽松）
+        if let Some((x, y)) = crate::visual::find_button_by_template(
+            &screenshot, 
+            template_path.to_str().unwrap(), 
+            Some(0.5)  // 进一步降低阈值
+        )? {
+            info!("   ✅ 通过图像识别找到按钮 / Found button via image recognition");
+            
+            // 点击找到的位置
+            crate::visual::click_at_coordinates(page, x, y).await?;
+            info!("   ✅ 已点击创建账号按钮 / Clicked sign up button");
+            
+            return Ok(());
+        }
+        
+        anyhow::bail!("所有方法都失败 / All methods failed")
+    }
+
     /// 填写邮箱
     async fn fill_email(&self, page: &chromiumoxide::Page, email: &str) -> Result<()> {
+        info!("   正在查找邮箱输入框 / Looking for email input...");
+
+        // 方法1: 通过 JS 智能查找并聚焦
+        // Method 1: Smart search and focus via JS
+        let found = page.evaluate(r#"
+            (function() {
+                // 1. 优先查找明确的 name/type 属性 / Priority: explicit name/type
+                const emailInput = document.querySelector('input[name="email"]') || document.querySelector('input[type="email"]');
+                if (emailInput) {
+                    emailInput.focus();
+                    return true;
+                }
+
+                // 2. 遍历输入框 / Iterate inputs
+                const inputs = document.querySelectorAll('input');
+                for (const input of inputs) {
+                    const attr = (input.getAttribute('name') || input.getAttribute('autocomplete') || input.placeholder || '').toLowerCase();
+                    if (attr.includes('email') || attr.includes('邮箱') || attr.includes('邮件')) {
+                        input.focus();
+                        return true;
+                    }
+                }
+
+                // 3. 检查 Label / Check labels
+                const labels = document.querySelectorAll('label');
+                for (const label of labels) {
+                    const text = (label.innerText || '').toLowerCase();
+                    if (text.includes('email') || text.includes('邮箱')) {
+                        const input = document.getElementById(label.getAttribute('for')) || label.querySelector('input');
+                        if (input) {
+                            input.focus();
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            })()
+        "#).await;
+
+        match found {
+             Ok(val) => {
+                if val.into_value::<bool>()? {
+                    info!("   ✅ 通过 JS 找到并聚焦邮箱输入框 / Found and focused email input via JS");
+                    sleep(Duration::from_millis(500)).await;
+                    page.keyboard().type_str(email).await?;
+                    info!("   ✅ 邮箱已填写 / Email filled");
+                    return Ok(());
+                }
+            },
+            Err(e) => warn!("   JS 查找失败: {} / JS search failed: {}", e, e),
+        }
+
+        // 方法2: 传统的选择器回退
+        // Method 2: Traditional selectors fallback
         let selectors = vec![
             "input[name='email']",
             "input[autocomplete='email']",
@@ -513,7 +738,7 @@ impl XRegistration {
             if let Ok(element) = page.find_element(selector).await {
                 element.click().await?;
                 element.type_str(email).await?;
-                info!("   ✅ 邮箱已填写 / Email filled");
+                info!("   ✅ 邮箱已填写 (选择器) / Email filled (selector)");
                 return Ok(());
             }
         }
