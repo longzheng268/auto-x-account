@@ -24,12 +24,13 @@ rustflags = [
 
 # Windows MSVC 工具链配置（默认）
 # Windows MSVC Toolchain Configuration (default)
+# 开发模式使用动态链接（编译快），发布模式使用静态链接（无依赖）
+# Dev mode uses dynamic linking (fast), release mode uses static linking (no dependencies)
 [target.x86_64-pc-windows-msvc]
-# MSVC 默认使用静态链接 CRT
-# MSVC uses static CRT by default
-rustflags = [
-    "-C", "target-feature=+crt-static",
-]
+# 默认不设置静态链接，让开发模式使用动态链接
+# No static linking by default for faster dev builds
+# 注意：release 模式需要手动添加 RUSTFLAGS 环境变量来启用静态链接
+# Note: For release mode, manually set RUSTFLAGS environment variable for static linking
 
 # 通用构建配置
 # General build configuration

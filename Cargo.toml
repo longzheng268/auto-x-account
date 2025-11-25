@@ -11,6 +11,12 @@ repository = "https://github.com/longzheng268/auto-x-account"
 keywords = ["proprietary", "commercial", "twitter", "automation"]
 categories = ["command-line-utilities"]
 
+
+[lib]
+name = "auto_x_account"
+# 默认编译为 rlib (静态库)，使用 --crate-type cdylib 可编译为动态库
+crate-type = ["rlib", "cdylib"]
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(font_misans)'] }
 
@@ -46,6 +52,7 @@ egui = "0.25"
 egui_extras = { version = "0.25", features = ["image"] }
 rfd = "0.13"
 image = "0.24"
+imageproc = "0.24"  # 图像识别 - 模板匹配
 
 # Windows 平台依赖 - 修复 winapi 功能特性缺失问题
 # 显式启用 winapi 的所有必要功能，确保 eframe 能正确编译

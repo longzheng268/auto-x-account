@@ -82,7 +82,8 @@ pub fn get_screenshots_dir() -> PathBuf {
 /// 获取浏览器数据目录
 /// Get browser data directory
 pub fn get_browser_data_dir() -> PathBuf {
-    get_data_dir().join("browser_data")
+    // 使用系统临时目录，避免 Roaming Profile 的锁定或权限问题
+    std::env::temp_dir().join(format!("auto-x-account-edge-{}", chrono::Utc::now().timestamp()))
 }
 
 /// 初始化所有必需的目录
